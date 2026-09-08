@@ -1,0 +1,129 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create database migration for call_history table": [
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788802012044
+      },
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788803089990
+      }
+    ],
+    "1.2 Update User model with presence tracking fields": [
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788802012869
+      },
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788803091665
+      }
+    ],
+    "11.1 Add backend environment variables": [
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788802013852
+      },
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788803090792
+      }
+    ],
+    "1.3 Create CallHistory SQLAlchemy model": [
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788803099131
+      },
+      {
+        "executionId": "a0c81719-33bc-488d-a6d4-025fab365eaf",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788804821980
+      }
+    ],
+    "1.4 Create CallSession in-memory data class": [
+      {
+        "executionId": "9365875a-fc5e-4113-9fce-58ceacc7d71f",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788803100229
+      },
+      {
+        "executionId": "a0c81719-33bc-488d-a6d4-025fab365eaf",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788804823904
+      }
+    ],
+    "1.5 Create Pydantic schemas for call operations": [
+      {
+        "executionId": "a0c81719-33bc-488d-a6d4-025fab365eaf",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788804824960
+      },
+      {
+        "executionId": "a0c81719-33bc-488d-a6d4-025fab365eaf",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788804825010
+      }
+    ],
+    "11.2 Update frontend API configuration": [
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788804912325
+      },
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805075230
+      }
+    ],
+    "11.3 Update CORS configuration for WebSocket": [
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805076201
+      }
+    ],
+    "2.1 Implement ConnectionManager for WebSocket tracking": [
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805097473
+      }
+    ],
+    "2.2 Create WebSocket authentication helper": [
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805098444
+      }
+    ],
+    "2.3 Implement CallSessionManager for active call tracking": [
+      {
+        "executionId": "b3513797-3a06-4117-8259-681c90181cf9",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805506077
+      }
+    ],
+    "5.1 Create WebRTC configuration and state types": [
+      {
+        "executionId": "0a0c8d40-fbec-401d-bab5-28fdc110b802",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805574197
+      },
+      {
+        "executionId": "0a0c8d40-fbec-401d-bab5-28fdc110b802",
+        "chatSessionId": "sess_a1e5b710-27f5-4b08-bc81-098cf0d7f817",
+        "timestamp": 1788805813421
+      }
+    ]
+  }
+}
