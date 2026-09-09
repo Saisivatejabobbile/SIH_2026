@@ -1,6 +1,7 @@
 // Component Showcase Page (for testing only - remove in production)
 import { useState } from 'react';
 import Layout from '../components/layout/Layout';
+import IncomingCallModal from '../components/call/IncomingCallModal';
 import { 
   Button, 
   Card, CardHeader, CardBody, CardFooter,
@@ -14,6 +15,15 @@ import {
 
 export default function ComponentShowcase() {
   const [showModal, setShowModal] = useState(false);
+  const [showIncomingCall, setShowIncomingCall] = useState(false);
+  
+  // Mock caller data for testing
+  const mockCaller = {
+    full_name: 'John Doe',
+    email: 'john.doe@example.com',
+    phone_number: '+1 (555) 123-4567',
+    avatar: null
+  };
   
   return (
     <Layout>
@@ -22,6 +32,24 @@ export default function ComponentShowcase() {
           <h1 className="text-3xl font-bold text-gradient mb-2">Component Showcase</h1>
           <p className="text-gray-400">Testing all reusable components</p>
         </div>
+        
+        {/* Incoming Call Modal Test */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold">?? Incoming Call Modal</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-gray-400 mb-4">
+              Click the button below to test the incoming call modal with ringtone.
+            </p>
+            <Button 
+              variant="primary" 
+              onClick={() => setShowIncomingCall(true)}
+            >
+              Simulate Incoming Call
+            </Button>
+          </CardBody>
+        </Card>
         
         {/* Buttons */}
         <Card>
@@ -148,7 +176,7 @@ export default function ComponentShowcase() {
           </CardHeader>
           <CardBody>
             <EmptyState
-              icon="📭"
+              icon="??"
               title="No items found"
               message="There are no items to display. Add your first item to get started."
               action={<Button variant="primary">Add Item</Button>}
@@ -176,6 +204,20 @@ export default function ComponentShowcase() {
           </Button>
         </ModalFooter>
       </Modal>
+      
+      {/* Incoming Call Modal for Testing */}
+      <IncomingCallModal
+        caller={mockCaller}
+        onAccept={() => {
+          console.log('Call accepted!');
+          setShowIncomingCall(false);
+        }}
+        onReject={() => {
+          console.log('Call rejected!');
+          setShowIncomingCall(false);
+        }}
+        isOpen={showIncomingCall}
+      />
     </Layout>
   );
 }
