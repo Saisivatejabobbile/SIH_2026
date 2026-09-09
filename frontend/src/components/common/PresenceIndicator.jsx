@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 /**
  * PresenceIndicator Component
@@ -17,11 +17,11 @@ export default function PresenceIndicator({ isOnline, showLabel = false, size = 
   return (
     <div className="inline-flex items-center gap-2">
       <div 
-        className={ounded-full transition-colors ` + sizeClasses[size] + ` ` + (isOnline ? 'bg-success-light animate-pulse' : 'bg-gray-500')}
+        className={`rounded-full transition-colors ${sizeClasses[size]} ${isOnline ? 'bg-success-light animate-pulse' : 'bg-gray-500'}`}
         title={isOnline ? 'Online' : 'Offline'}
       />
       {showLabel && (
-        <span className={	ext-sm font-medium ` + (isOnline ? 'text-success-light' : 'text-gray-500')}>
+        <span className={`text-sm font-medium ${isOnline ? 'text-success-light' : 'text-gray-500'}`}>
           {isOnline ? 'Online' : 'Offline'}
         </span>
       )}
