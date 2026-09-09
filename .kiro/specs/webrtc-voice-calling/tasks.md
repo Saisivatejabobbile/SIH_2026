@@ -182,7 +182,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return list of CallHistory records
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [~] 4.2 Integrate call cleanup on hangup
+- [x] 4.2 Integrate call cleanup on hangup
   - Update signaling message handler to detect hangup messages
   - Retrieve CallSession from session_manager
   - Update session status to "ended" and set ended_at timestamp
@@ -201,7 +201,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Clear audio buffers for all user's call sessions
   - _Requirements: 1.3, 9.2_
 
-- [~] 4.4 Create call history API endpoint
+- [x] 4.4 Create call history API endpoint
   - Create GET `/api/calls/history` endpoint requiring authentication
   - Call call_history_service.get_user_call_history(current_user.id)
   - Return list of CallHistoryResponse schemas

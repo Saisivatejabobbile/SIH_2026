@@ -16,6 +16,7 @@ from app.models.call_session import CallSession, CallState
 from app.auth.security import decode_access_token
 from app.websockets.connection_manager import signaling_manager, ConnectionManager
 from app.services.call_session_manager import session_manager, CallSessionManager
+from app.services.call_history import CallHistoryService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ async def handle_signaling_message(
             await _handle_ice_candidate_routing(user_id, message, connection_manager, session_manager)
         
         elif message_type == "hangup":
-            await _handle_hangup_routing(user_id, message, connection_manager, session_manager)
+            await _handle_hangup_routing(user_id, message, connection_manager, session_manager, db)
         
         else:
             logger.warning(f"Unknown message type received from user {user_id}: {message_type}")
@@ -367,7 +368,8 @@ async def _handle_hangup_routing(
     user_id: int,
     message: dict,
     connection_manager: ConnectionManager,
-    session_manager: CallSessionManager
+    session_manager: CallSessionManager,
+    db: Session
 ) -> None:
     """Handle hangup routing."""
     call_id = message.get("call_id")
@@ -400,8 +402,27 @@ async def _handle_hangup_routing(
             "by": user_id
         }, other_user_id)
     
-    # End the session
-    session_manager.end_session(call_id)
+    # Save call history before ending session
+    call_history_service = CallHistoryService(db)
+    final_session = session_manager.end_session(call_id)
+    
+    if final_session:
+        # Extract final risk data from call session (if available)
+        final_risk_level = getattr(final_session, 'final_risk_level', None)
+        final_risk_score = getattr(final_session, 'final_risk_score', None)
+        
+        # Create call history record
+        result = await call_history_service.create_call_record(
+            call_session=final_session,
+            final_risk_level=final_risk_level,
+            final_risk_score=final_risk_score
+        )
+        
+        if result:
+            logger.info(f"Call history saved for {call_id}: duration={result.duration_seconds}s, risk={result.risk_level}")
+        else:
+            logger.error(f"Failed to save call history for {call_id}")
+
 
 
 @router.websocket("/ws/signaling")
