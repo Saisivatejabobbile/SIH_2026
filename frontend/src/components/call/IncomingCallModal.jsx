@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
 
@@ -9,13 +9,87 @@ export default function IncomingCallModal({
   onReject,
   isOpen 
 }) {
-  // Play ringing sound effect (optional)
+  const audioRef = useRef(null);
+
+  // Play ringing sound effect and cleanup on unmount
   useEffect(() => {
-    if (isOpen) {
-      // TODO: Add ringing sound
+    if (isOpen && caller) {
       console.log('Incoming call from:', caller?.full_name);
+      
+      // Create audio element for ringtone
+      // Using a simple oscillator-based ringtone since no audio file exists
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Configure ringtone (alternating frequencies for ring effect)
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 480; // Start frequency
+      gainNode.gain.value = 0.3; // Volume at 30%
+      
+      // Alternating ring pattern
+      let ringInterval;
+      oscillator.start();
+      
+      ringInterval = setInterval(() => {
+        oscillator.frequency.value = oscillator.frequency.value === 480 ? 620 : 480;
+      }, 500);
+      
+      // Store audio context and oscillator for cleanup
+      audioRef.current = { audioContext, oscillator, ringInterval };
+      
+      // Cleanup function - stops ringtone when modal closes or component unmounts
+      return () => {
+        if (audioRef.current) {
+          const { audioContext, oscillator, ringInterval } = audioRef.current;
+          clearInterval(ringInterval);
+          try {
+            oscillator.stop();
+            audioContext.close();
+          } catch (e) {
+            console.error('Error stopping ringtone:', e);
+          }
+          audioRef.current = null;
+        }
+      };
     }
   }, [isOpen, caller]);
+
+  // Helper function to stop ringtone before calling callbacks
+  const handleAccept = () => {
+    // Stop ringtone immediately
+    if (audioRef.current) {
+      const { audioContext, oscillator, ringInterval } = audioRef.current;
+      clearInterval(ringInterval);
+      try {
+        oscillator.stop();
+        audioContext.close();
+      } catch (e) {
+        console.error('Error stopping ringtone:', e);
+      }
+      audioRef.current = null;
+    }
+    onAccept();
+  };
+
+  const handleReject = () => {
+    // Stop ringtone immediately
+    if (audioRef.current) {
+      const { audioContext, oscillator, ringInterval } = audioRef.current;
+      clearInterval(ringInterval);
+      try {
+        oscillator.stop();
+        audioContext.close();
+      } catch (e) {
+        console.error('Error stopping ringtone:', e);
+      }
+      audioRef.current = null;
+    }
+    onReject();
+  };
 
   if (!isOpen || !caller) return null;
 
@@ -40,8 +114,13 @@ export default function IncomingCallModal({
             {caller.full_name}
           </h2>
           
-          {/* Caller Info */}
+          {/* Caller Email */}
           <p className="text-gray-400 mb-1">{caller.email}</p>
+          
+          {/* Caller Phone Number (if available) */}
+          {caller.phone_number && (
+            <p className="text-gray-400 mb-1">{caller.phone_number}</p>
+          )}
           
           {/* Call Status */}
           <div className="flex items-center gap-2 mb-8">
@@ -57,7 +136,7 @@ export default function IncomingCallModal({
           <Button
             variant="danger"
             size="lg"
-            onClick={onReject}
+            onClick={handleReject}
             className="flex-1 py-4"
           >
             <div className="flex flex-col items-center">
@@ -71,7 +150,7 @@ export default function IncomingCallModal({
           <Button
             variant="success"
             size="lg"
-            onClick={onAccept}
+            onClick={handleAccept}
             className="flex-1 py-4 animate-pulse"
           >
             <div className="flex flex-col items-center">
