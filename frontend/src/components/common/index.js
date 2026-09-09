@@ -7,3 +7,4 @@ export { default as Modal, ModalFooter } from './Modal';
 export { default as Loading, FullPageLoading, InlineLoading } from './Loading';
 export { default as EmptyState } from './EmptyState';
 export { default as Input, Textarea } from './Input';
+export { default as PresenceIndicator } from './PresenceIndicator';
