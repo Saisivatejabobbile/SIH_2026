@@ -47,6 +47,16 @@ export function CallProvider({ children }) {
 
       // Listen for incoming calls
       signalingWS.on('incoming_call', (message) => {
+        // Check if incoming calls are allowed in settings
+        const allowIncomingCalls = localStorage.getItem('allowIncomingCalls');
+        
+        if (allowIncomingCalls === 'false') {
+          // Auto-reject if incoming calls are disabled
+          console.log('Incoming calls disabled - auto-rejecting call from:', message.caller_name);
+          signalingWS.rejectCall(message.call_id, message.from);
+          return;
+        }
+        
         // Check if notifications are enabled
         const incomingCallNotifications = localStorage.getItem('incomingCallNotifications');
         
@@ -54,7 +64,7 @@ export function CallProvider({ children }) {
           // Show browser notification if enabled
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Incoming Call', {
-              body: Call from ${message.caller_name},
+              body: `Call from ${message.caller_name}`,
               icon: '/logo.svg',
               tag: 'incoming-call'
             });
@@ -395,5 +405,7 @@ export function CallProvider({ children }) {
     </CallContext.Provider>
   );
 }
+
+
 
 
