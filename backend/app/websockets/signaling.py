@@ -497,8 +497,23 @@ async def websocket_signaling(
         # Clean up any active calls for this user
         ended_sessions = session_manager.cleanup_user_sessions(user.id)
         
-        # Notify peers of unexpected disconnect
+        # Save call history and notify peers of unexpected disconnect
+        call_history_service = CallHistoryService(db)
+        
         for call_session in ended_sessions:
+            # Save call history with 'failed' status (unexpected disconnect)
+            try:
+                result = await call_history_service.create_call_record(
+                    call_session=call_session,
+                    final_risk_level=getattr(call_session, 'final_risk_level', None),
+                    final_risk_score=getattr(call_session, 'final_risk_score', None)
+                )
+                if result:
+                    logger.info(f"Call history saved for disconnected call {call_session.call_id}: duration={result.duration_seconds}s")
+            except Exception as e:
+                logger.error(f"Failed to save call history for {call_session.call_id} on disconnect: {e}")
+            
+            # Notify the other participant
             other_user_id = (
                 call_session.callee_id if call_session.caller_id == user.id
                 else call_session.caller_id

@@ -193,7 +193,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Forward hangup message to other participant
   - _Requirements: 6.3, 6.4, 6.5, 8.1, 8.5_
 
-- [~] 4.3 Implement cleanup on unexpected disconnect
+- [x] 4.3 Implement cleanup on unexpected disconnect
   - Update ConnectionManager.disconnect() to accept session_manager and call_history_service
   - Call session_manager.cleanup_user_sessions(user_id)
   - For each active session involving the user, create call_history record with status "failed"
