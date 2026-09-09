@@ -8,6 +8,7 @@ from .call_session_manager import CallSessionManager
 from .risk_engine import RiskEngine, get_risk_engine
 from .audio_buffer import AudioBuffer
 from .audio_pipeline import process_audio_chunk
+from .call_history import CallHistoryService
 
 __all__ = [
     "AIModelClient",
@@ -20,4 +21,5 @@ __all__ = [
     "get_risk_engine",
     "AudioBuffer",
     "process_audio_chunk",
+    "CallHistoryService",
 ]

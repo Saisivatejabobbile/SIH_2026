@@ -92,7 +92,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Update call session status appropriately
   - _Requirements: 1.5, 2.4, 2.5, 2.6, 3.4, 3.5, 6.3, 6.4, 6.5_
 
-- [~] 2.5 Create WebSocket signaling endpoint
+- [x] 2.5 Create WebSocket signaling endpoint
   - Create `/ws/signaling` WebSocket endpoint with token query parameter
   - Authenticate user using JWT token
   - Accept WebSocket connection and register with ConnectionManager
@@ -154,7 +154,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Handle exceptions gracefully with logging
   - _Requirements: 11.2, 11.4, 11.5, 15.1, 15.4, 15.5_
 
-- [~] 3.6 Create analysis WebSocket endpoint
+- [x] 3.6 Create analysis WebSocket endpoint
   - Create `/ws/analysis` WebSocket endpoint with token query parameter
   - Authenticate user using JWT token
   - Accept WebSocket connection
@@ -169,7 +169,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 4. Backend Call History and Cleanup
 
-- [~] 4.1 Implement CallHistoryService
+- [x] 4.1 Implement CallHistoryService
   - Create CallHistoryService class with db session injection
   - Implement async `create_call_record(call_session: CallSession, final_risk_level, final_risk_score)` method
   - Create CallHistory instance from call_session data
@@ -244,7 +244,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Store peerConnection in state
   - _Requirements: 2.4, 4.1, 4.6, 4.7, 5.2, 5.3, 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [~] 5.5 Implement call initiation flow
+- [x] 5.5 Implement call initiation flow
   - Implement `initiateCall(contactId)` async function
   - Generate unique call_id using UUID
   - Request microphone access
@@ -255,7 +255,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Navigate to ActiveCallPage
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.7_
 
-- [~] 5.6 Implement incoming call acceptance flow
+- [x] 5.6 Implement incoming call acceptance flow
   - Implement `acceptCall()` async function
   - Request microphone access
   - Send call_accept message via signaling WebSocket
@@ -264,7 +264,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Wait for SDP offer from caller
   - _Requirements: 3.4, 4.1_
 
-- [~] 5.7 Implement call rejection flow
+- [x] 5.7 Implement call rejection flow
   - Implement `rejectCall()` function
   - Send call_reject message via signaling WebSocket
   - Update callState to 'idle'
