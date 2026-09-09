@@ -14,32 +14,52 @@ export default function IncomingCallModal({
   // Play ringing sound effect and cleanup on unmount
   useEffect(() => {
     if (isOpen && caller) {
-      console.log('Incoming call from:', caller?.full_name);
+      console.log('?? Incoming call from:', caller?.full_name);
       
-      // Create audio element for ringtone
-      // Using a simple oscillator-based ringtone since no audio file exists
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      // Configure ringtone (alternating frequencies for ring effect)
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 480; // Start frequency
-      gainNode.gain.value = 0.3; // Volume at 30%
-      
-      // Alternating ring pattern
-      let ringInterval;
-      oscillator.start();
-      
-      ringInterval = setInterval(() => {
-        oscillator.frequency.value = oscillator.frequency.value === 480 ? 620 : 480;
-      }, 500);
-      
-      // Store audio context and oscillator for cleanup
-      audioRef.current = { audioContext, oscillator, ringInterval };
+      try {
+        // Create audio context
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Resume AudioContext if suspended (browser autoplay policy)
+        if (audioContext.state === 'suspended') {
+          console.log('?? AudioContext suspended - attempting to resume...');
+          audioContext.resume().then(() => {
+            console.log('? AudioContext resumed successfully');
+          }).catch(err => {
+            console.error('? Failed to resume AudioContext:', err);
+          });
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Configure ringtone (alternating frequencies for ring effect)
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 480; // Start frequency
+        gainNode.gain.value = 0.3; // Volume at 30%
+        
+        console.log('?? Starting ringtone (480Hz/620Hz pattern)...');
+        
+        // Alternating ring pattern
+        let ringInterval;
+        oscillator.start();
+        
+        ringInterval = setInterval(() => {
+          oscillator.frequency.value = oscillator.frequency.value === 480 ? 620 : 480;
+          console.log('?? Ring tone:', oscillator.frequency.value + 'Hz');
+        }, 500);
+        
+        // Store audio context and oscillator for cleanup
+        audioRef.current = { audioContext, oscillator, ringInterval };
+        
+        console.log('? Ringtone started successfully');
+        
+      } catch (error) {
+        console.error('? Error starting ringtone:', error);
+      }
       
       // Cleanup function - stops ringtone when modal closes or component unmounts
       return () => {
@@ -49,6 +69,7 @@ export default function IncomingCallModal({
           try {
             oscillator.stop();
             audioContext.close();
+            console.log('?? Ringtone stopped');
           } catch (e) {
             console.error('Error stopping ringtone:', e);
           }
@@ -60,6 +81,7 @@ export default function IncomingCallModal({
 
   // Helper function to stop ringtone before calling callbacks
   const handleAccept = () => {
+    console.log('? Call accepted - stopping ringtone');
     // Stop ringtone immediately
     if (audioRef.current) {
       const { audioContext, oscillator, ringInterval } = audioRef.current;
@@ -76,6 +98,7 @@ export default function IncomingCallModal({
   };
 
   const handleReject = () => {
+    console.log('? Call rejected - stopping ringtone');
     // Stop ringtone immediately
     if (audioRef.current) {
       const { audioContext, oscillator, ringInterval } = audioRef.current;
