@@ -41,6 +41,12 @@ export const useWebRTCComplete = (signalingWebSocket) => {
   const peerConnectionRef = useRef(null);
   const durationIntervalRef = useRef(null);
   const iceCandidatesQueueRef = useRef([]);
+  const signalingWSRef = useRef(signalingWebSocket);
+  
+  // Update ref when signalingWebSocket changes
+  useEffect(() => {
+    signalingWSRef.current = signalingWebSocket;
+  }, [signalingWebSocket]);
   
   /**
    * Call state machine transitions
@@ -102,7 +108,7 @@ export const useWebRTCComplete = (signalingWebSocket) => {
         },
         onICECandidate: (candidate) => {
           if (signalingWebSocket?.isConnected) {
-            signalingWebSocket.sendMessage({
+            signalingWSRef.current?.sendMessage({
               type: 'ice_candidate',
               call_id: callId,
               to: contactId,
@@ -177,7 +183,7 @@ export const useWebRTCComplete = (signalingWebSocket) => {
         },
         onICECandidate: (candidate) => {
           if (signalingWebSocket?.isConnected) {
-            signalingWebSocket.sendMessage({
+            signalingWSRef.current?.sendMessage({
               type: 'ice_candidate',
               call_id: incomingCall.call_id,
               to: incomingCall.from,
@@ -330,7 +336,7 @@ export const useWebRTCComplete = (signalingWebSocket) => {
     
     // Send hangup message
     if (currentCallId && signalingWebSocket?.isConnected) {
-      signalingWebSocket.sendMessage({
+      signalingWSRef.current?.sendMessage({
         type: 'hangup',
         call_id: currentCallId,
       });
@@ -358,7 +364,7 @@ export const useWebRTCComplete = (signalingWebSocket) => {
    * Handle incoming signaling messages
    */
   useEffect(() => {
-    if (!signalingWebSocket) return;
+    if (!signalingWSRef.current) return;
     
     const handleIncomingCall = (message) => {
       console.log('Incoming call from:', message.caller_name);
@@ -378,7 +384,7 @@ export const useWebRTCComplete = (signalingWebSocket) => {
       if (peerConnectionRef.current) {
         const { offer, error: offerError } = await createOffer(peerConnectionRef.current);
         if (!offerError && offer) {
-          signalingWebSocket.sendMessage({
+          signalingWSRef.current?.sendMessage({
             type: 'sdp_offer',
             call_id: message.call_id,
             to: message.by,
@@ -408,20 +414,20 @@ export const useWebRTCComplete = (signalingWebSocket) => {
     
     // Register message handlers
     const cleanups = [
-      signalingWebSocket.onMessage('incoming_call', handleIncomingCall),
-      signalingWebSocket.onMessage('call_accepted', handleCallAccepted),
-      signalingWebSocket.onMessage('call_rejected', handleCallRejected),
-      signalingWebSocket.onMessage('call_failed', handleCallFailed),
-      signalingWebSocket.onMessage('hangup', handleHangup),
-      signalingWebSocket.onMessage('sdp_offer', (msg) => handleSDPOffer(msg.sdp)),
-      signalingWebSocket.onMessage('sdp_answer', (msg) => handleSDPAnswer(msg.sdp)),
-      signalingWebSocket.onMessage('ice_candidate', (msg) => handleICECandidate(msg.candidate)),
+      signalingWSRef.current?.onMessage('incoming_call', handleIncomingCall),
+      signalingWSRef.current?.onMessage('call_accepted', handleCallAccepted),
+      signalingWSRef.current?.onMessage('call_rejected', handleCallRejected),
+      signalingWSRef.current?.onMessage('call_failed', handleCallFailed),
+      signalingWSRef.current?.onMessage('hangup', handleHangup),
+      signalingWSRef.current?.onMessage('sdp_offer', (msg) => handleSDPOffer(msg.sdp)),
+      signalingWSRef.current?.onMessage('sdp_answer', (msg) => handleSDPAnswer(msg.sdp)),
+      signalingWSRef.current?.onMessage('ice_candidate', (msg) => handleICECandidate(msg.candidate)),
     ];
     
     return () => {
       cleanups.forEach(cleanup => cleanup && cleanup());
     };
-  }, [signalingWebSocket, handleSDPOffer, handleSDPAnswer, handleICECandidate, endCall, transitionToState]);
+  }, [handleSDPOffer, handleSDPAnswer, handleICECandidate, endCall, transitionToState]);
   
   /**
    * Cleanup on unmount

@@ -1,4 +1,4 @@
-﻿// API Service Layer for VoiceShield Backend Integration
+// API Service Layer for VoiceShield Backend Integration
 // This service handles all HTTP requests to the backend
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -305,6 +305,22 @@ export const callsAPI = {
     }
 
     return apiCall(`/api/calls/${callId}`);
+  },
+  // Save call history
+  saveCallHistory: async (callData) => {
+    if (IS_MOCK_MODE) {
+      console.log('[MOCK] Saving call history:', callData);
+      return {
+        message: 'Call history saved',
+        call_id: callData.call_id,
+        duration_seconds: callData.duration_seconds
+      };
+    }
+
+    return apiCall('/api/calls/history', {
+      method: 'POST',
+      body: JSON.stringify(callData),
+    });
   },
 };
 

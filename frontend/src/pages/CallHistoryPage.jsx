@@ -17,6 +17,11 @@ export default function CallHistoryPage() {
   
   const { calls: mockCallHistory, loading: isLoading, error } = useCallHistory();
 
+  console.log('[CallHistoryPage] mockCallHistory:', mockCallHistory, 'length:', mockCallHistory?.length);
+
+  // Filter calls based on search query and risk filter
+
+
   // Filter calls based on search query and risk filter
   const filteredCalls = useMemo(() => {
     let filtered = mockCallHistory;
@@ -36,8 +41,9 @@ export default function CallHistoryPage() {
       filtered = filtered.filter((call) => call.risk_level === riskFilter);
     }
 
-    return filtered;
-  }, [searchQuery, riskFilter]);
+        return filtered;
+  }, [mockCallHistory, searchQuery, riskFilter]);
+
 
   const handleCallClick = (call) => {
     setSelectedCall(call);

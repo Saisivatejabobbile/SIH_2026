@@ -1,5 +1,7 @@
 import { useAuth } from '../context/AuthContext';
+import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall.jsx';
 import { useCall } from '../context/CallContext';
+import IncomingCallModal from '../components/IncomingCallModal';
 import Layout from '../components/layout/Layout';
 import StatsCard from '../components/dashboard/StatsCard';
 import SecurityStatusCard from '../components/dashboard/SecurityStatusCard';
@@ -13,17 +15,30 @@ export default function Dashboard() {
   const { receiveIncomingCall } = useCall();
   const navigate = useNavigate();
   
+  // WebRTC Integration with SimplePeer
+  const {
+    callState,
+    incomingCall,
+    isMuted,
+    isConnected,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    toggleMute,
+    endCall,
+    formatDuration,
+  } = useSharedSimplePeerCall();
+  
   // Get first name from full name
   const firstName = user?.full_name?.split(' ')[0] || 'User';
   
-  // Mock stats data (will be replaced with real data from API)
+  // Mock stats data
   const stats = {
     activeCalls: 12,
     contactsOnline: 5,
     threatsBlocked: 0,
   };
 
-  // Test incoming call simulation
   const handleTestIncomingCall = () => {
     const mockCaller = {
       id: 'test-caller',
@@ -45,7 +60,6 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Welcome Section */}
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
             Welcome, {firstName}!
@@ -55,7 +69,33 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Mock Mode Warning */}
+        <div className={`p-4 rounded-lg border ${isConnected ? 'bg-success-dark/20 border-success-light/30' : 'bg-warning-dark/20 border-warning-light/30'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-success-light' : 'bg-warning-light'}`}></div>
+              <p className={isConnected ? 'text-success-light' : 'text-warning-light'}>
+                {isConnected ? 'WebRTC Connected - Ready for calls' : 'Connecting...'}
+              </p>
+            </div>
+          </div>
+
+        {callState === 'calling' && (
+          <div className="p-6 bg-warning-dark/20 border border-warning-light/30 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-white mb-2">Calling...</h3>
+              <p className="text-warning-light">Waiting for response</p>
+            </div>
+          </div>
+        )}
+
+        {callState === 'connected' && (
+          <div className="p-6 bg-primary-600/20 border border-primary-600/50 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-white mb-2">Call Active</h3>
+              <p className="text-2xl font-mono text-primary-400">{formatDuration()}</p>
+            </div>
+          </div>
+        )}
+
         {IS_MOCK_MODE && (
           <div className="p-4 bg-warning-dark/20 border border-warning-light/30 rounded-lg">
             <div className="flex items-center gap-3">
@@ -70,48 +110,51 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatsCard
             icon={<PhoneIcon className="w-6 h-6" />}
             label="Active Calls"
             value={stats.activeCalls}
             color="primary"
-            trend={{
-              positive: true,
-              value: '12%',
-              label: 'vs last week',
-            }}
+            trend={{ positive: true, value: '12%', label: 'vs last week' }}
           />
-          
           <StatsCard
             icon={<UsersIcon className="w-6 h-6" />}
             label="Contacts Online"
             value={stats.contactsOnline}
             color="success"
           />
-          
           <StatsCard
             icon={<ShieldIcon className="w-6 h-6" />}
             label="Threats Blocked"
             value={stats.threatsBlocked}
             color="danger"
-            trend={{
-              positive: true,
-              value: '0',
-              label: 'this month',
-            }}
+            trend={{ positive: true, value: '0', label: 'this month' }}
           />
         </div>
 
-        {/* Security Status Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SecurityStatusCard status="protected" />
           
-          {/* Quick Actions Card */}
           <div className="card p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
             <div className="space-y-3">
+              <button 
+                onClick={() => initiateCall(2, 'Raya')}
+                disabled={!isConnected || callState !== 'idle'}
+                className="w-full p-4 bg-primary-600 hover:bg-primary-700 disabled:bg-dark-700 disabled:cursor-not-allowed rounded-lg text-left transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                    <PhoneIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Call Raya (WebRTC)</p>
+                    <p className="text-gray-300 text-sm">{isConnected ? 'Click to call' : 'Connecting...'}</p>
+                  </div>
+                </div>
+              </button>
+              
               <button 
                 onClick={handleTestIncomingCall}
                 className="w-full p-4 bg-dark-800 hover:bg-dark-700 rounded-lg text-left transition-colors group"
@@ -160,7 +203,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Privacy Notice */}
         <div className="card p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-success-dark/20 rounded-lg flex items-center justify-center">
@@ -168,7 +210,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1">
               <p className="text-white font-medium">Privacy Protected</p>
-              <p className="text-gray-400 text-sm">Raw Audio Retention: OFF â€¢ All processing is transient</p>
+              <p className="text-gray-400 text-sm">Raw Audio Retention: OFF • All processing is transient</p>
             </div>
             <div className="px-3 py-1 bg-success-dark/20 rounded-full flex items-center gap-1">
               <div className="w-2 h-2 bg-success-light rounded-full"></div>
@@ -177,6 +219,14 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <IncomingCallModal
+        callerInfo={incomingCall}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
+
+
     </Layout>
   );
 }

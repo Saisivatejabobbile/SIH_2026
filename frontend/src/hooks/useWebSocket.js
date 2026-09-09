@@ -14,9 +14,17 @@ export const useWebSocket = (url, token) => {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef(null);
   const messageHandlersRef = useRef(new Map());
+  const urlRef = useRef(url);
+  const tokenRef = useRef(token);
+  
+  // Update refs when props change
+  useEffect(() => {
+    urlRef.current = url;
+    tokenRef.current = token;
+  }, [url, token]);
   
   const maxReconnectAttempts = 5;
-  const baseReconnectDelay = 2000; // 2 seconds
+  const baseReconnectDelay = 2000;
   
   /**
    * Register message handler
@@ -27,7 +35,6 @@ export const useWebSocket = (url, token) => {
     }
     messageHandlersRef.current.get(messageType).push(handler);
     
-    // Return cleanup function
     return () => {
       const handlers = messageHandlersRef.current.get(messageType);
       if (handlers) {
@@ -49,7 +56,6 @@ export const useWebSocket = (url, token) => {
       
       console.log(`WebSocket received: ${type}`, message);
       
-      // Call registered handlers for this message type
       const handlers = messageHandlersRef.current.get(type) || [];
       handlers.forEach(handler => {
         try {
@@ -67,49 +73,27 @@ export const useWebSocket = (url, token) => {
    * Send message through WebSocket
    */
   const sendMessage = useCallback((message) => {
-    if (wsRef.current && isConnected) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const jsonMessage = JSON.stringify(message);
       wsRef.current.send(jsonMessage);
       console.log(`WebSocket sent: ${message.type}`, message);
     } else {
       console.error('WebSocket not connected, cannot send message');
     }
-  }, [isConnected]);
-  
-  /**
-   * Attempt reconnection with exponential backoff
-   */
-  const attemptReconnect = useCallback(() => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
-      setConnectionState('failed');
-      return;
-    }
-    
-    reconnectAttemptsRef.current += 1;
-    const delay = baseReconnectDelay * reconnectAttemptsRef.current;
-    
-    console.log(
-      `Attempting reconnect ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${delay}ms...`
-    );
-    
-    setConnectionState('reconnecting');
-    
-    reconnectTimeoutRef.current = setTimeout(() => {
-      connect();
-    }, delay);
   }, []);
   
   /**
    * Connect to WebSocket
    */
   const connect = useCallback(() => {
-    if (!url || !token) {
+    const currentUrl = urlRef.current;
+    const currentToken = tokenRef.current;
+    
+    if (!currentUrl || !currentToken) {
       console.warn('WebSocket URL or token not provided');
       return;
     }
     
-    // Clear any existing reconnect timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -118,12 +102,12 @@ export const useWebSocket = (url, token) => {
     setConnectionState('connecting');
     
     try {
-      const wsUrl = `${url}?token=${token}`;
-      console.log(`WebSocket connecting to: ${url}`);
+      const wsUrl = `${currentUrl}?token=${currentToken}`;
+      console.log(`WebSocket connecting to: ${currentUrl}`);
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
-        console.log(`WebSocket connected: ${url}`);
+        console.log(`WebSocket connected: ${currentUrl}`);
         setConnectionState('connected');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
@@ -136,12 +120,24 @@ export const useWebSocket = (url, token) => {
       };
       
       ws.onclose = () => {
-        console.log(`WebSocket closed: ${url}`);
+        console.log(`WebSocket closed: ${currentUrl}`);
         setConnectionState('disconnected');
         setIsConnected(false);
         
-        // Attempt reconnection
-        attemptReconnect();
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current += 1;
+          const delay = baseReconnectDelay * reconnectAttemptsRef.current;
+          
+          console.log(`Attempting reconnect ${reconnectAttemptsRef.current}/${maxReconnectAttempts}...`);
+          setConnectionState('reconnecting');
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, delay);
+        } else {
+          console.error('Max reconnection attempts reached');
+          setConnectionState('failed');
+        }
       };
       
       wsRef.current = ws;
@@ -149,9 +145,8 @@ export const useWebSocket = (url, token) => {
     } catch (error) {
       console.error('Failed to create WebSocket:', error);
       setConnectionState('disconnected');
-      attemptReconnect();
     }
-  }, [url, token, handleMessage, attemptReconnect]);
+  }, [handleMessage]);
   
   /**
    * Disconnect WebSocket
@@ -185,6 +180,7 @@ export const useWebSocket = (url, token) => {
     return () => {
       disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, token]);
   
   return {

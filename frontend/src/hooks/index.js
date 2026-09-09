@@ -2,3 +2,4 @@
 
 export { useContacts } from './useContacts';
 export { useCallHistory } from './useCallHistory';
+export { useWebSocket } from './useWebSocket';

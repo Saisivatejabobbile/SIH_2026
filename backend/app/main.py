@@ -1,9 +1,10 @@
-﻿"""
+"""
 VoiceShield Backend - Main Application
 FastAPI application with WebRTC signaling and AI voice analysis
 """
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
@@ -46,43 +47,26 @@ app = FastAPI(
 )
 
 
-# Handle OPTIONS requests BEFORE middleware
-@app.options("/{full_path:path}")
-async def handle_options(request: Request, full_path: str):
-    logger.info(f"OPTIONS request received for: {full_path}")
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
+# Configure CORS - FIXED: Cannot use wildcard with credentials
+app.add_middleware(
+    CORSMiddleware,
+   allow_origins=[
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+],
 
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],
+    expose_headers=["Content-Type"],
+    max_age=600,  # Cache preflight for 10 minutes
+)
 
-# Custom middleware to add CORS headers to ALL responses
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    logger.info(f"Request: {request.method} {request.url.path}")
-    
-    # For OPTIONS, let it pass through to the handler above
-    if request.method == "OPTIONS":
-        response = await call_next(request)
-    else:
-        response = await call_next(request)
-    
-    # Add CORS headers to response
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
-    logger.info(f"Response status: {response.status_code}")
-    return response
-
-
-logger.info("CORS configured with logging")
+logger.info("CORS middleware configured")
 
 
 # Health check endpoint

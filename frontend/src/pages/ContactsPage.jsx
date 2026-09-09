@@ -1,24 +1,34 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Layout from '../components/layout/Layout';
 import ContactsList from '../components/contacts/ContactsList';
 import AddContactModal from '../components/contacts/AddContactModal';
+import IncomingCallModal from '../components/IncomingCallModal';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
-import { useCall } from '../context/CallContext';
+import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall.jsx';
 import { useContacts } from '../hooks/useContacts';
 import { contactsAPI } from '../services/api';
 
 export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { startCall } = useCall();
   const { contacts, loading: isLoading, error, fetchContacts } = useContacts();
+  
+  const {
+    callState,
+    incomingCall,
+    isMuted,
+    isConnected,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    toggleMute,
+    endCall,
+    formatDuration
+  } = useSharedSimplePeerCall();
 
-  // Filter contacts based on search query
   const filteredContacts = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return contacts;
-    }
+    if (!searchQuery.trim()) return contacts;
     
     const query = searchQuery.toLowerCase();
     return contacts.filter(
@@ -29,9 +39,11 @@ export default function ContactsPage() {
   }, [searchQuery, contacts]);
 
   const handleCall = (contact) => {
-    console.log('Calling:', contact);
-    // Start the call using CallContext
-    startCall(contact);
+    const contactId = contact.id || contact.contact_id;
+    const contactName = contact.full_name || contact.contact_name || 'Unknown';
+    
+    console.log('Calling:', contactName, contactId);
+    initiateCall(contactId, contactName);
   };
 
   const handleAddContact = () => {
@@ -44,14 +56,8 @@ export default function ContactsPage() {
 
   const handleAddContactSubmit = async (contactData) => {
     try {
-      console.log('Adding contact:', contactData);
-      
-      // Call the backend API to add contact
       await contactsAPI.addContact(contactData.name, contactData.email);
-      
-      // Refresh contacts list
       await fetchContacts();
-      
       return Promise.resolve();
     } catch (error) {
       console.error('Failed to add contact:', error);
@@ -62,13 +68,22 @@ export default function ContactsPage() {
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Connection Status */}
+        <div className={`p-4 rounded-lg border ${isConnected ? 'bg-success-dark/20 border-success-light/30' : 'bg-warning-dark/20 border-warning-light/30'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-success-light' : 'bg-warning-light'}`}></div>
+            <p className={isConnected ? 'text-success-light' : 'text-warning-light'}>
+              {isConnected ? '? Ready for calls' : '? Connecting...'}
+            </p>
+          </div>
+        </div>
+
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Contacts</h1>
-            <p className="text-gray-400">
-              Manage your contacts and see who's online
-            </p>
+            <p className="text-gray-400">Manage your contacts and make secure calls</p>
           </div>
           
           <Button variant="primary" onClick={handleAddContact}>
@@ -104,10 +119,7 @@ export default function ContactsPage() {
                 Found {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
               </p>
               {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-primary-400 hover:text-primary-300 text-sm"
-                >
+                <button onClick={() => setSearchQuery('')} className="text-primary-400 hover:text-primary-300 text-sm">
                   Clear search
                 </button>
               )}
@@ -123,46 +135,19 @@ export default function ContactsPage() {
           
           {searchQuery && filteredContacts.length === 0 && (
             <div className="card p-12 text-center">
-              <p className="text-gray-400 mb-4">
-                No contacts found matching "{searchQuery}"
-              </p>
-              <Button variant="secondary" onClick={() => setSearchQuery('')}>
-                Clear search
-              </Button>
+              <p className="text-gray-400 mb-4">No contacts found matching "{searchQuery}"</p>
+              <Button variant="secondary" onClick={() => setSearchQuery('')}>Clear search</Button>
             </div>
           )}
         </div>
 
-        {/* Online Status Legend */}
-        <div className="card p-4">
-          <p className="text-sm font-medium text-gray-400 mb-3">Status Indicators:</p>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-success-light" />
-              <span className="text-sm text-gray-400">Online</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-gray-500" />
-              <span className="text-sm text-gray-400">Offline</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-danger-light" />
-              <span className="text-sm text-gray-400">Busy</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-warning-light" />
-              <span className="text-sm text-gray-400">In Call</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Add Contact Modal */}
-        <AddContactModal
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          onAdd={handleAddContactSubmit}
-        />
+        <AddContactModal isOpen={isModalOpen} onClose={handleCloseModal} onAdd={handleAddContactSubmit} />
       </div>
+
+      {/* Incoming Call Modal */}
+      <IncomingCallModal callerInfo={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
+
+
     </Layout>
   );
 }

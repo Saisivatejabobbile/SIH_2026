@@ -1,9 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CallProvider, useCall } from './context/CallContext';
+import { WebSocketProvider } from './context/WebSocketContext';
 import { ROUTES } from './constants';
 
-// Pages (will be created in subsequent parts)
+// Pages
 import LandingPage from './pages/LandingPage';
 import SignUpPage from './pages/SignUpPage';
 import LoginPage from './pages/LoginPage';
@@ -20,6 +21,8 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Call Components
 import IncomingCallModal from './components/call/IncomingCallModal';
+import GlobalActiveCallOverlay from './components/call/GlobalActiveCallOverlay';
+import { SimplePeerCallProvider } from './hooks/useSharedSimplePeerCall.jsx';
 
 // Global Incoming Call Modal Wrapper
 function GlobalCallModal() {
@@ -38,15 +41,18 @@ function GlobalCallModal() {
 // Main App Component wrapped in Router
 function AppContent() {
   return (
-    <CallProvider>
-      <GlobalCallModal />
-      <Routes>
-          {/* Public Routes */}
+    <SimplePeerCallProvider>
+      <CallProvider>
+        <WebSocketProvider>
+          <GlobalCallModal />
+       <GlobalActiveCallOverlay /> 
+
+
+          <Routes>
           <Route path={ROUTES.LANDING} element={<LandingPage />} />
           <Route path={ROUTES.SIGN_UP} element={<SignUpPage />} />
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
 
-          {/* Protected Routes */}
           <Route
             path={ROUTES.DASHBOARD}
             element={
@@ -88,7 +94,6 @@ function AppContent() {
             }
           />
           
-          {/* Component Showcase (Development Only) */}
           <Route
             path="/showcase"
             element={
@@ -98,7 +103,6 @@ function AppContent() {
             }
           />
           
-          {/* Active Call Page */}
           <Route
             path="/call/:callId"
             element={
@@ -108,10 +112,11 @@ function AppContent() {
             }
           />
 
-        {/* Catch all - redirect to landing */}
-        <Route path="*" element={<Navigate to={ROUTES.LANDING} replace />} />
-      </Routes>
-    </CallProvider>
+          <Route path="*" element={<Navigate to={ROUTES.LANDING} replace />} />
+        </Routes>
+        </WebSocketProvider>
+      </CallProvider>
+    </SimplePeerCallProvider>
   );
 }
 

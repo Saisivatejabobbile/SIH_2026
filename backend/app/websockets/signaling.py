@@ -12,15 +12,13 @@ from datetime import datetime
 
 from app.database import get_db
 from app.models.user import User
-from app.models.call_session import CallSession
+from app.models.call_session import CallSession, CallState
 from app.auth.security import decode_access_token
-from app.websockets.connection_manager import signaling_manager
+from app.websockets.connection_manager import signaling_manager, ConnectionManager
+from app.services.call_session_manager import session_manager, CallSessionManager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# In-memory storage for active call sessions
-active_calls: dict = {}  # call_id → CallSession
 
 
 async def get_current_user_ws(
@@ -47,6 +45,363 @@ async def get_current_user_ws(
     
     user = db.query(User).filter(User.id == int(user_id)).first()
     return user
+
+
+async def handle_signaling_message(
+    user_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager,
+    db: Session
+) -> None:
+    """
+    Route signaling messages between peers with validation.
+    
+    Handles all WebRTC signaling message types and manages call session state.
+    Validates that target users are online before forwarding messages.
+    
+    Supported message types:
+    - call_initiate: Start new call
+    - call_accept: Accept incoming call
+    - call_reject: Reject incoming call
+    - sdp_offer: WebRTC SDP offer
+    - sdp_answer: WebRTC SDP answer
+    - ice_candidate: ICE candidate for NAT traversal
+    - hangup: End active call
+    
+    Requirements Satisfied:
+    - 1.5: Route signaling messages between authenticated peers
+    - 2.4: Create SDP offer and send to signaling server
+    - 2.5: Verify callee is online before forwarding call
+    - 2.6: Send error if callee is offline
+    - 3.4: Send call acceptance message
+    - 3.5: Send call rejection message
+    - 6.3: Send hangup message
+    - 6.4: Close peer connection and stop streams
+    - 6.5: Handle received hangup message
+    
+    Args:
+        user_id: ID of the user sending the message
+        message: Message dict containing type and message-specific data
+        connection_manager: Manager for WebSocket connections
+        session_manager: Manager for call sessions
+        db: Database session
+    """
+    message_type = message.get("type")
+    logger.info(f"Routing message from user {user_id}: {message_type}")
+    
+    try:
+        # Route to appropriate handler based on message type
+        if message_type == "call_initiate":
+            await _handle_call_initiate_routing(user_id, message, connection_manager, session_manager, db)
+        
+        elif message_type == "call_accept":
+            await _handle_call_accept_routing(user_id, message, connection_manager, session_manager)
+        
+        elif message_type == "call_reject":
+            await _handle_call_reject_routing(user_id, message, connection_manager, session_manager)
+        
+        elif message_type == "sdp_offer":
+            await _handle_sdp_routing(user_id, message, "sdp_offer", connection_manager, session_manager)
+        
+        elif message_type == "sdp_answer":
+            await _handle_sdp_routing(user_id, message, "sdp_answer", connection_manager, session_manager)
+        
+        elif message_type == "ice_candidate":
+            await _handle_ice_candidate_routing(user_id, message, connection_manager, session_manager)
+        
+        elif message_type == "hangup":
+            await _handle_hangup_routing(user_id, message, connection_manager, session_manager)
+        
+        else:
+            logger.warning(f"Unknown message type received from user {user_id}: {message_type}")
+            await connection_manager.send_personal_message({
+                "type": "error",
+                "message": f"Unknown message type: {message_type}"
+            }, user_id)
+    
+    except Exception as e:
+        logger.error(f"Error handling signaling message from user {user_id}: {e}", exc_info=True)
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": "Internal server error processing message"
+        }, user_id)
+
+
+async def _handle_call_initiate_routing(
+    caller_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager,
+    db: Session
+) -> None:
+    """Handle call initiation routing with validation."""
+    call_id = message.get("call_id")
+    callee_id = message.get("callee_id")
+    
+    if not call_id or not callee_id:
+        logger.error(f"Missing call_id or callee_id in call_initiate from user {caller_id}")
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": "Missing required fields: call_id, callee_id"
+        }, caller_id)
+        return
+    
+    # Validate target user is online
+    if not connection_manager.is_user_connected(callee_id):
+        logger.warning(f"Call initiation failed: User {callee_id} is offline")
+        await connection_manager.send_personal_message({
+            "type": "call_failed",
+            "call_id": call_id,
+            "reason": "user_offline",
+            "message": "Target user is not online"
+        }, caller_id)
+        return
+    
+    # Get user info from database
+    caller = db.query(User).filter(User.id == caller_id).first()
+    callee = db.query(User).filter(User.id == callee_id).first()
+    
+    if not caller or not callee:
+        logger.error(f"User not found: caller={caller_id}, callee={callee_id}")
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": "User not found"
+        }, caller_id)
+        return
+    
+    # Create call session
+    call_session = session_manager.create_session(
+        call_id=call_id,
+        caller_id=caller_id,
+        callee_id=callee_id,
+        caller_name=caller.full_name,
+        callee_name=callee.full_name
+    )
+    call_session.set_state(CallState.RINGING)
+    
+    logger.info(f"Call initiated: {caller.full_name} → {callee.full_name} (ID: {call_id})")
+    
+    # Forward call initiation to callee
+    await connection_manager.send_personal_message({
+        "type": "incoming_call",
+        "call_id": call_id,
+        "from": caller_id,
+        "caller_name": caller.full_name,
+        "caller_email": caller.email
+    }, callee_id)
+
+
+async def _handle_call_accept_routing(
+    callee_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager
+) -> None:
+    """Handle call acceptance routing."""
+    call_id = message.get("call_id")
+    
+    if not call_id:
+        logger.error(f"Missing call_id in call_accept from user {callee_id}")
+        return
+    
+    call_session = session_manager.get_session(call_id)
+    if not call_session:
+        logger.error(f"Call session {call_id} not found for acceptance")
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": "Call session not found"
+        }, callee_id)
+        return
+    
+    # Update call session status
+    session_manager.update_session_status(call_id, CallState.ACCEPTED.value)
+    
+    # Validate caller is still online
+    if not connection_manager.is_user_connected(call_session.caller_id):
+        logger.warning(f"Caller {call_session.caller_id} is no longer online")
+        await connection_manager.send_personal_message({
+            "type": "call_failed",
+            "call_id": call_id,
+            "reason": "caller_offline"
+        }, callee_id)
+        session_manager.end_session(call_id)
+        return
+    
+    logger.info(f"Call {call_id} accepted by user {callee_id}")
+    
+    # Forward acceptance to caller
+    await connection_manager.send_personal_message({
+        "type": "call_accepted",
+        "call_id": call_id,
+        "by": callee_id
+    }, call_session.caller_id)
+
+
+async def _handle_call_reject_routing(
+    callee_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager
+) -> None:
+    """Handle call rejection routing."""
+    call_id = message.get("call_id")
+    
+    if not call_id:
+        logger.error(f"Missing call_id in call_reject from user {callee_id}")
+        return
+    
+    call_session = session_manager.get_session(call_id)
+    if not call_session:
+        logger.warning(f"Call session {call_id} not found for rejection")
+        return
+    
+    # Update call session status
+    session_manager.update_session_status(call_id, CallState.REJECTED.value)
+    
+    logger.info(f"Call {call_id} rejected by user {callee_id}")
+    
+    # Forward rejection to caller (if still online)
+    if connection_manager.is_user_connected(call_session.caller_id):
+        await connection_manager.send_personal_message({
+            "type": "call_rejected",
+            "call_id": call_id,
+            "by": callee_id
+        }, call_session.caller_id)
+    
+    # End the session
+    session_manager.end_session(call_id)
+
+
+async def _handle_sdp_routing(
+    user_id: int,
+    message: dict,
+    message_type: str,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager
+) -> None:
+    """Handle SDP offer/answer routing."""
+    call_id = message.get("call_id")
+    target_user_id = message.get("to")
+    sdp = message.get("sdp")
+    
+    if not call_id or not target_user_id or not sdp:
+        logger.error(f"Missing required fields in {message_type} from user {user_id}")
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": f"Missing required fields: call_id, to, sdp"
+        }, user_id)
+        return
+    
+    call_session = session_manager.get_session(call_id)
+    if not call_session:
+        logger.warning(f"Call session {call_id} not found for {message_type}")
+        await connection_manager.send_personal_message({
+            "type": "error",
+            "message": "Call session not found"
+        }, user_id)
+        return
+    
+    # Validate target user is online
+    if not connection_manager.is_user_connected(target_user_id):
+        logger.warning(f"Target user {target_user_id} is offline for {message_type}")
+        await connection_manager.send_personal_message({
+            "type": "call_failed",
+            "call_id": call_id,
+            "reason": "peer_offline"
+        }, user_id)
+        return
+    
+    # Update session state if this is an answer
+    if message_type == "sdp_answer":
+        session_manager.update_session_status(call_id, CallState.CONNECTED.value)
+    
+    logger.debug(f"Forwarding {message_type} from {user_id} to {target_user_id}")
+    
+    # Forward SDP to target user
+    await connection_manager.send_personal_message({
+        "type": message_type,
+        "call_id": call_id,
+        "from": user_id,
+        "sdp": sdp
+    }, target_user_id)
+
+
+async def _handle_ice_candidate_routing(
+    user_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager
+) -> None:
+    """Handle ICE candidate routing."""
+    call_id = message.get("call_id")
+    target_user_id = message.get("to")
+    candidate = message.get("candidate")
+    
+    if not call_id or not target_user_id:
+        logger.error(f"Missing required fields in ice_candidate from user {user_id}")
+        return
+    
+    call_session = session_manager.get_session(call_id)
+    if not call_session:
+        logger.debug(f"Call session {call_id} not found for ICE candidate (may have ended)")
+        return
+    
+    # Validate target user is online
+    if not connection_manager.is_user_connected(target_user_id):
+        logger.debug(f"Target user {target_user_id} is offline, skipping ICE candidate")
+        return
+    
+    logger.debug(f"Forwarding ICE candidate from {user_id} to {target_user_id}")
+    
+    # Forward ICE candidate to target user
+    await connection_manager.send_personal_message({
+        "type": "ice_candidate",
+        "call_id": call_id,
+        "from": user_id,
+        "candidate": candidate
+    }, target_user_id)
+
+
+async def _handle_hangup_routing(
+    user_id: int,
+    message: dict,
+    connection_manager: ConnectionManager,
+    session_manager: CallSessionManager
+) -> None:
+    """Handle hangup routing."""
+    call_id = message.get("call_id")
+    
+    if not call_id:
+        logger.error(f"Missing call_id in hangup from user {user_id}")
+        return
+    
+    call_session = session_manager.get_session(call_id)
+    if not call_session:
+        logger.warning(f"Call session {call_id} not found for hangup")
+        return
+    
+    # Update call session status
+    session_manager.update_session_status(call_id, CallState.ENDED.value)
+    
+    # Determine the other peer
+    other_user_id = (
+        call_session.callee_id if call_session.caller_id == user_id
+        else call_session.caller_id
+    )
+    
+    logger.info(f"Call {call_id} ended by user {user_id}")
+    
+    # Forward hangup to other peer (if still online)
+    if connection_manager.is_user_connected(other_user_id):
+        await connection_manager.send_personal_message({
+            "type": "hangup",
+            "call_id": call_id,
+            "by": user_id
+        }, other_user_id)
+    
+    # End the session
+    session_manager.end_session(call_id)
 
 
 @router.websocket("/ws/signaling")
@@ -94,33 +449,14 @@ async def websocket_signaling(
             data = await websocket.receive_text()
             message = json.loads(data)
             
-            message_type = message.get("type")
-            logger.info(f"Received message from user {user.id}: {message_type}")
-            
-            # Handle different message types
-            if message_type == "call_initiate":
-                await handle_call_initiate(message, user, db)
-            
-            elif message_type == "call_accept":
-                await handle_call_accept(message, user, db)
-            
-            elif message_type == "call_reject":
-                await handle_call_reject(message, user, db)
-            
-            elif message_type == "offer":
-                await handle_offer(message, user)
-            
-            elif message_type == "answer":
-                await handle_answer(message, user)
-            
-            elif message_type == "ice_candidate":
-                await handle_ice_candidate(message, user)
-            
-            elif message_type == "hangup":
-                await handle_hangup(message, user, db)
-            
-            else:
-                logger.warning(f"Unknown message type: {message_type}")
+            # Route message using centralized handler
+            await handle_signaling_message(
+                user_id=user.id,
+                message=message,
+                connection_manager=signaling_manager,
+                session_manager=session_manager,
+                db=db
+            )
     
     except WebSocketDisconnect:
         logger.info(f"User {user.id} disconnected from signaling")
@@ -137,286 +473,19 @@ async def websocket_signaling(
         user.last_seen = datetime.utcnow()
         db.commit()
         
-        # End any active calls
-        for call_id, call_session in list(active_calls.items()):
-            if call_session.caller_id == user.id or call_session.callee_id == user.id:
-                # Notify the other peer
-                other_user_id = (
-                    call_session.callee_id if call_session.caller_id == user.id 
-                    else call_session.caller_id
-                )
+        # Clean up any active calls for this user
+        ended_sessions = session_manager.cleanup_user_sessions(user.id)
+        
+        # Notify peers of unexpected disconnect
+        for call_session in ended_sessions:
+            other_user_id = (
+                call_session.callee_id if call_session.caller_id == user.id
+                else call_session.caller_id
+            )
+            
+            if signaling_manager.is_user_connected(other_user_id):
                 await signaling_manager.send_personal_message({
                     "type": "hangup",
-                    "call_id": call_id,
+                    "call_id": call_session.call_id,
                     "reason": "peer_disconnected"
                 }, other_user_id)
-                
-                # Remove call session
-                del active_calls[call_id]
-
-
-async def handle_call_initiate(message: dict, caller: User, db: Session):
-    """
-    Handle call initiation
-    
-    Message format:
-    {
-        "type": "call_initiate",
-        "call_id": "call-123",
-        "callee_id": 2
-    }
-    """
-    call_id = message.get("call_id")
-    callee_id = message.get("callee_id")
-    
-    if not call_id or not callee_id:
-        logger.error("Missing call_id or callee_id in call_initiate")
-        return
-    
-    # Get callee info
-    callee = db.query(User).filter(User.id == callee_id).first()
-    if not callee:
-        logger.error(f"Callee {callee_id} not found")
-        await signaling_manager.send_personal_message({
-            "type": "error",
-            "message": "User not found"
-        }, caller.id)
-        return
-    
-    # Check if callee is online
-    if not signaling_manager.is_user_connected(callee_id):
-        logger.warning(f"Callee {callee_id} is not online")
-        await signaling_manager.send_personal_message({
-            "type": "call_failed",
-            "call_id": call_id,
-            "reason": "user_offline"
-        }, caller.id)
-        return
-    
-    # Create call session
-    call_session = CallSession(
-        call_id=call_id,
-        caller_id=caller.id,
-        callee_id=callee.id,
-        caller_name=caller.full_name,
-        callee_name=callee.full_name
-    )
-    active_calls[call_id] = call_session
-    
-    logger.info(f"Call initiated: {caller.full_name} → {callee.full_name} (ID: {call_id})")
-    
-    # Send incoming_call to callee
-    await signaling_manager.send_personal_message({
-        "type": "incoming_call",
-        "call_id": call_id,
-        "from": caller.id,
-        "caller_name": caller.full_name,
-        "caller_email": caller.email
-    }, callee_id)
-
-
-async def handle_call_accept(message: dict, callee: User, db: Session):
-    """
-    Handle call acceptance
-    
-    Message format:
-    {
-        "type": "call_accept",
-        "call_id": "call-123"
-    }
-    """
-    call_id = message.get("call_id")
-    
-    if call_id not in active_calls:
-        logger.error(f"Call {call_id} not found")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.set_state("ACCEPTED")
-    
-    logger.info(f"Call accepted: {call_id}")
-    
-    # Notify caller
-    await signaling_manager.send_personal_message({
-        "type": "call_accepted",
-        "call_id": call_id,
-        "by": callee.id
-    }, call_session.caller_id)
-
-
-async def handle_call_reject(message: dict, callee: User, db: Session):
-    """
-    Handle call rejection
-    
-    Message format:
-    {
-        "type": "call_reject",
-        "call_id": "call-123"
-    }
-    """
-    call_id = message.get("call_id")
-    
-    if call_id not in active_calls:
-        logger.error(f"Call {call_id} not found")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.set_state("REJECTED")
-    
-    logger.info(f"Call rejected: {call_id}")
-    
-    # Notify caller
-    await signaling_manager.send_personal_message({
-        "type": "call_rejected",
-        "call_id": call_id,
-        "by": callee.id
-    }, call_session.caller_id)
-    
-    # Remove call session
-    del active_calls[call_id]
-
-
-async def handle_offer(message: dict, caller: User):
-    """
-    Handle WebRTC offer
-    
-    Message format:
-    {
-        "type": "offer",
-        "call_id": "call-123",
-        "to": 2,
-        "sdp": {...}
-    }
-    """
-    call_id = message.get("call_id")
-    to_user_id = message.get("to")
-    sdp = message.get("sdp")
-    
-    if call_id not in active_calls:
-        logger.error(f"Call {call_id} not found for offer")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.caller_offer = sdp
-    
-    logger.info(f"Forwarding offer from {caller.id} to {to_user_id}")
-    
-    # Forward offer to callee
-    await signaling_manager.send_personal_message({
-        "type": "offer",
-        "call_id": call_id,
-        "from": caller.id,
-        "sdp": sdp
-    }, to_user_id)
-
-
-async def handle_answer(message: dict, callee: User):
-    """
-    Handle WebRTC answer
-    
-    Message format:
-    {
-        "type": "answer",
-        "call_id": "call-123",
-        "to": 1,
-        "sdp": {...}
-    }
-    """
-    call_id = message.get("call_id")
-    to_user_id = message.get("to")
-    sdp = message.get("sdp")
-    
-    if call_id not in active_calls:
-        logger.error(f"Call {call_id} not found for answer")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.callee_answer = sdp
-    call_session.set_state("CONNECTED")
-    
-    logger.info(f"Forwarding answer from {callee.id} to {to_user_id}")
-    
-    # Forward answer to caller
-    await signaling_manager.send_personal_message({
-        "type": "answer",
-        "call_id": call_id,
-        "from": callee.id,
-        "sdp": sdp
-    }, to_user_id)
-
-
-async def handle_ice_candidate(message: dict, user: User):
-    """
-    Handle ICE candidate
-    
-    Message format:
-    {
-        "type": "ice_candidate",
-        "call_id": "call-123",
-        "to": 2,
-        "candidate": {...}
-    }
-    """
-    call_id = message.get("call_id")
-    to_user_id = message.get("to")
-    candidate = message.get("candidate")
-    
-    if call_id not in active_calls:
-        logger.debug(f"Call {call_id} not found for ICE candidate (may have ended)")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.ice_candidates.append({
-        "from": user.id,
-        "to": to_user_id,
-        "candidate": candidate
-    })
-    
-    logger.debug(f"Forwarding ICE candidate from {user.id} to {to_user_id}")
-    
-    # Forward ICE candidate to peer
-    await signaling_manager.send_personal_message({
-        "type": "ice_candidate",
-        "call_id": call_id,
-        "from": user.id,
-        "candidate": candidate
-    }, to_user_id)
-
-
-async def handle_hangup(message: dict, user: User, db: Session):
-    """
-    Handle call hangup
-    
-    Message format:
-    {
-        "type": "hangup",
-        "call_id": "call-123"
-    }
-    """
-    call_id = message.get("call_id")
-    
-    if call_id not in active_calls:
-        logger.warning(f"Call {call_id} not found for hangup")
-        return
-    
-    call_session = active_calls[call_id]
-    call_session.set_state("ENDED")
-    
-    # Determine the other peer
-    other_user_id = (
-        call_session.callee_id if call_session.caller_id == user.id 
-        else call_session.caller_id
-    )
-    
-    logger.info(f"Call ended: {call_id} by user {user.id}")
-    
-    # Notify other peer
-    await signaling_manager.send_personal_message({
-        "type": "hangup",
-        "call_id": call_id,
-        "by": user.id
-    }, other_user_id)
-    
-    # TODO: Save call history to database
-    # For now, just remove the call session
-    del active_calls[call_id]

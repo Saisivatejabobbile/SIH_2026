@@ -14,7 +14,11 @@ from datetime import datetime
 from app.database import get_db
 from app.models.user import User
 from app.auth.security import decode_access_token
-from app.services.ai_analyzer import get_analyzer
+from app.services.audio_buffer import AudioBuffer
+from app.services.audio_pipeline import process_audio_chunk, cleanup_call_buffer
+from app.services.ai_model_client import get_ai_client
+from app.services.risk_engine import get_risk_engine
+# Lazy import: signaling_manager imported in handle_audio_chunk
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -23,6 +27,10 @@ logger = logging.getLogger(__name__)
 # Track active analysis sessions
 # call_id → {"caller_ws": WebSocket, "callee_ws": WebSocket, "analysis_count": int}
 active_analysis_sessions: Dict[str, dict] = {}
+
+# Track audio buffers for active calls
+# call_id → AudioBuffer instance
+audio_buffers: Dict[str, AudioBuffer] = {}
 
 
 async def get_current_user_ws(
@@ -118,8 +126,9 @@ async def websocket_analysis(
         "websocket": websocket
     })
     
-    # Get AI analyzer
-    analyzer = get_analyzer()
+    # Get AI client and risk engine instances
+    ai_client = get_ai_client(use_mock=True)  # Use mock for development
+    risk_engine = get_risk_engine()
     
     # Send initial status
     await websocket.send_json({
@@ -137,7 +146,14 @@ async def websocket_analysis(
             message_type = message.get("type")
             
             if message_type == "audio_chunk":
-                await handle_audio_chunk(message, call_id, analyzer, websocket)
+                await handle_audio_chunk(
+                    message=message,
+                    call_id=call_id,
+                    user_id=user.id,
+                    ai_client=ai_client,
+                    risk_engine=risk_engine,
+                    sender_websocket=websocket
+                )
             
             elif message_type == "start_analysis":
                 await websocket.send_json({
@@ -156,11 +172,27 @@ async def websocket_analysis(
                 logger.info(f"Analysis stopped for call {call_id}")
             
             elif message_type == "get_summary":
-                summary = analyzer.get_analysis_summary()
-                await websocket.send_json({
-                    "type": "analysis_summary",
-                    **summary
-                })
+                # Get buffer stats
+                if call_id in audio_buffers:
+                    buffer = audio_buffers[call_id]
+                    summary = {
+                        "type": "analysis_summary",
+                        "call_id": call_id,
+                        "buffer_duration": buffer.get_duration(),
+                        "buffer_samples": buffer.get_sample_count(),
+                        "buffer_full": buffer.is_full(),
+                        "analysis_count": active_analysis_sessions[call_id]["analysis_count"]
+                    }
+                else:
+                    summary = {
+                        "type": "analysis_summary",
+                        "call_id": call_id,
+                        "buffer_duration": 0,
+                        "buffer_samples": 0,
+                        "buffer_full": False,
+                        "analysis_count": 0
+                    }
+                await websocket.send_json(summary)
             
             else:
                 logger.warning(f"Unknown message type: {message_type}")
@@ -180,16 +212,23 @@ async def websocket_analysis(
                 if ws["user_id"] != user.id
             ]
             
-            # If no more WebSockets, remove session
+            # If no more WebSockets, cleanup and remove session
             if not active_analysis_sessions[call_id]["websockets"]:
                 logger.info(f"All users disconnected from analysis for call {call_id}")
+                
+                # Cleanup audio buffer
+                cleanup_call_buffer(call_id, audio_buffers)
+                
+                # Remove session
                 del active_analysis_sessions[call_id]
 
 
 async def handle_audio_chunk(
     message: dict,
     call_id: str,
-    analyzer,
+    user_id: int,
+    ai_client,
+    risk_engine,
     sender_websocket: WebSocket
 ):
     """
@@ -198,10 +237,13 @@ async def handle_audio_chunk(
     Args:
         message: Message with audio data
         call_id: Call ID
-        analyzer: AI analyzer instance
+        user_id: User ID who sent the audio
+        ai_client: AI model client instance
+        risk_engine: Risk engine instance
         sender_websocket: WebSocket that sent the audio
     """
     audio_data = message.get("audio_data")
+    sample_rate = message.get("sample_rate", 16000)
     
     if not audio_data:
         logger.warning("Received audio_chunk without audio_data")
@@ -219,38 +261,33 @@ async def handle_audio_chunk(
         logger.info(f"Processing audio chunk #{count} for call {call_id}")
     
     try:
-        # Convert audio data to bytes if needed
-        # In production, audio_data would be base64 encoded PCM
-        # For mock, we just pass it to analyzer
-        audio_bytes = audio_data if isinstance(audio_data, bytes) else b""
-        
-        # Analyze audio with AI model
-        analysis_result = analyzer.analyze_audio_chunk(audio_bytes)
-        
-        # Add metadata
-        analysis_result["call_id"] = call_id
-        analysis_result["timestamp"] = datetime.utcnow().isoformat()
-        analysis_result["chunk_number"] = count
-        
-        # Create risk update message
-        risk_update = {
-            "type": "risk_update",
-            **analysis_result
-        }
-        
-        # Broadcast to all WebSockets in this call's analysis session
-        if call_id in active_analysis_sessions:
-            await broadcast_to_call(call_id, risk_update)
-        
-        # Log significant risk changes
-        if analysis_result["risk_level"] in ["MEDIUM", "HIGH"]:
-            logger.warning(
-                f"⚠️  {analysis_result['risk_level']} risk detected in call {call_id}: "
-                f"Score={analysis_result['risk_score']:.1f}%"
-            )
+        # Convert audio data to list of integers if needed
+        # Frontend sends PCM data as array of Int16 values
+        if isinstance(audio_data, str):
+            # If base64 encoded, decode it
+            import base64
+            audio_bytes = base64.b64decode(audio_data)
+            import struct
+            pcm_data = list(struct.unpack(f'{len(audio_bytes)//2}h', audio_bytes))
+        elif isinstance(audio_data, list):
+            pcm_data = audio_data
+        else:
+            logger.warning(f"Unexpected audio_data type: {type(audio_data)}")
+            return
+        # Process audio chunk through the pipeline
+        await process_audio_chunk(
+            call_id=call_id,
+            pcm_data=pcm_data,
+            sample_rate=sample_rate,
+            audio_buffers=audio_buffers,
+            ai_client=ai_client,
+            risk_engine=risk_engine,
+            active_analysis_sessions=active_analysis_sessions,
+            receiver_user_id=user_id
+        )
     
     except Exception as e:
-        logger.error(f"Error analyzing audio chunk: {e}")
+        logger.error(f"Error handling audio chunk: {e}", exc_info=True)
         
         # Send error status
         await sender_websocket.send_json({
@@ -258,32 +295,6 @@ async def handle_audio_chunk(
             "state": "ERROR",
             "message": f"Analysis error: {str(e)}"
         })
-
-
-async def broadcast_to_call(call_id: str, message: dict):
-    """
-    Broadcast a message to all WebSockets in a call's analysis session
-    
-    Args:
-        call_id: Call ID
-        message: Message to broadcast
-    """
-    if call_id not in active_analysis_sessions:
-        return
-    
-    session = active_analysis_sessions[call_id]
-    disconnected = []
-    
-    for ws_info in session["websockets"]:
-        try:
-            await ws_info["websocket"].send_json(message)
-        except Exception as e:
-            logger.error(f"Error broadcasting to user {ws_info['user_id']}: {e}")
-            disconnected.append(ws_info)
-    
-    # Remove disconnected WebSockets
-    for ws_info in disconnected:
-        session["websockets"].remove(ws_info)
 
 
 def get_active_analysis_count() -> int:

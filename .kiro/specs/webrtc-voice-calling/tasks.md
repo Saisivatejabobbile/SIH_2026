@@ -83,7 +83,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Implement `cleanup_user_sessions(user_id)` for disconnect handling
   - _Requirements: 1.3, 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 2.4 Implement signaling message routing logic
+- [x] 2.4 Implement signaling message routing logic
   - Create `handle_signaling_message(user_id, message, connection_manager, session_manager)` async function
   - Handle message types: call_initiate, call_accept, call_reject, sdp_offer, sdp_answer, ice_candidate, hangup
   - Validate target user is online before forwarding messages
@@ -92,7 +92,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Update call session status appropriately
   - _Requirements: 1.5, 2.4, 2.5, 2.6, 3.4, 3.5, 6.3, 6.4, 6.5_
 
-- [ ] 2.5 Create WebSocket signaling endpoint
+- [~] 2.5 Create WebSocket signaling endpoint
   - Create `/ws/signaling` WebSocket endpoint with token query parameter
   - Authenticate user using JWT token
   - Accept WebSocket connection and register with ConnectionManager
@@ -107,7 +107,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 3. Backend AI Integration and Risk Analysis
 
-- [ ] 3.1 Create AI Model client with secure API key storage
+- [x] 3.1 Create AI Model client with secure API key storage
   - Implement AIModelClient class reading MODEL_API_URL and MODEL_API_KEY from settings
   - Implement async `predict(audio_data: bytes, sample_rate: int)` method
   - Use httpx.AsyncClient to POST audio with Authorization header (Bearer token)
@@ -118,14 +118,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Implement `_fallback_prediction()` returning safe defaults (0.0, 0.0, error message)
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-- [ ] 3.2 Create MockAIModelClient for development and testing
+- [x] 3.2 Create MockAIModelClient for development and testing
   - Extend AIModelClient with mock implementation
   - Generate random synthetic_probability (0.05-0.85) and model_confidence (0.85-0.98)
   - Include optional acoustic_indicators and prosody_indicators with random values
   - Add simulated network delay (0.5s) using asyncio.sleep
   - _Requirements: 15.1, 15.2_
 
-- [ ] 3.3 Implement Risk Engine for score calculation
+- [-] 3.3 Implement Risk Engine for score calculation
   - Create RiskEngine class with configurable thresholds (default: LOW < 30, HIGH >= 70)
   - Implement `calculate_risk(model_prediction: dict)` method
   - Extract synthetic_probability and model_confidence from prediction
@@ -135,7 +135,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return dict with synthetic_confidence, model_confidence, risk_score, risk_level, recommendation, indicators, timestamp
   - _Requirements: 15.2, 15.3, 15.4_
 
-- [ ] 3.4 Implement AudioBuffer for transient audio storage
+- [-] 3.4 Implement AudioBuffer for transient audio storage
   - Create AudioBuffer class with bounded deque (max_samples based on duration)
   - Implement `append(pcm_chunk: List[int])` method using ring buffer
   - Implement `get_window(duration_seconds: float)` method to extract recent samples
@@ -143,7 +143,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Use max_duration_seconds = 30 for bounded buffer
   - _Requirements: 11.6, 13.1, 13.2, 13.5_
 
-- [ ] 3.5 Create audio processing pipeline handler
+- [x] 3.5 Create audio processing pipeline handler
   - Implement async `process_audio_chunk(call_id, pcm_data, sample_rate, audio_buffers, ai_client, risk_engine, connection_manager)` function
   - Get or create AudioBuffer for call_id
   - Append pcm_data to buffer
@@ -154,7 +154,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Handle exceptions gracefully with logging
   - _Requirements: 11.2, 11.4, 11.5, 15.1, 15.4, 15.5_
 
-- [ ] 3.6 Create analysis WebSocket endpoint
+- [~] 3.6 Create analysis WebSocket endpoint
   - Create `/ws/analysis` WebSocket endpoint with token query parameter
   - Authenticate user using JWT token
   - Accept WebSocket connection
@@ -169,7 +169,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 4. Backend Call History and Cleanup
 
-- [ ] 4.1 Implement CallHistoryService
+- [~] 4.1 Implement CallHistoryService
   - Create CallHistoryService class with db session injection
   - Implement async `create_call_record(call_session: CallSession, final_risk_level, final_risk_score)` method
   - Create CallHistory instance from call_session data
@@ -182,7 +182,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return list of CallHistory records
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 4.2 Integrate call cleanup on hangup
+- [~] 4.2 Integrate call cleanup on hangup
   - Update signaling message handler to detect hangup messages
   - Retrieve CallSession from session_manager
   - Update session status to "ended" and set ended_at timestamp
@@ -193,7 +193,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Forward hangup message to other participant
   - _Requirements: 6.3, 6.4, 6.5, 8.1, 8.5_
 
-- [ ] 4.3 Implement cleanup on unexpected disconnect
+- [~] 4.3 Implement cleanup on unexpected disconnect
   - Update ConnectionManager.disconnect() to accept session_manager and call_history_service
   - Call session_manager.cleanup_user_sessions(user_id)
   - For each active session involving the user, create call_history record with status "failed"
@@ -201,7 +201,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Clear audio buffers for all user's call sessions
   - _Requirements: 1.3, 9.2_
 
-- [ ] 4.4 Create call history API endpoint
+- [~] 4.4 Create call history API endpoint
   - Create GET `/api/calls/history` endpoint requiring authentication
   - Call call_history_service.get_user_call_history(current_user.id)
   - Return list of CallHistoryResponse schemas
@@ -218,14 +218,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Define useWebRTC hook interface with state and action methods
   - _Requirements: 2.1, 7.1, 7.2_
 
-- [ ] 5.2 Implement useWebRTC hook core state management
+- [-] 5.2 Implement useWebRTC hook core state management
   - Create useWebRTC custom hook
   - Initialize state: callState, localStream, remoteStream, isMuted, callDuration, peerConnection, currentCallId
   - Implement callState state machine transitions
   - Set up cleanup on unmount (stop streams, close peer connection)
   - _Requirements: 2.7, 5.5, 7.1, 7.2_
 
-- [ ] 5.3 Implement microphone access and local stream management
+- [x] 5.3 Implement microphone access and local stream management
   - Implement async `requestMicrophoneAccess()` function
   - Call navigator.mediaDevices.getUserMedia({ audio: true })
   - Handle NotAllowedError, NotFoundError, NotReadableError with appropriate error messages
@@ -233,7 +233,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Implement `stopLocalStream()` function to stop all tracks and release microphone
   - _Requirements: 2.2, 2.3, 5.1, 9.1_
 
-- [ ] 5.4 Implement peer connection creation and setup
+- [x] 5.4 Implement peer connection creation and setup
   - Implement `createPeerConnection(callId)` function
   - Create RTCPeerConnection with STUN configuration
   - Add localStream tracks to peer connection
@@ -244,7 +244,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Store peerConnection in state
   - _Requirements: 2.4, 4.1, 4.6, 4.7, 5.2, 5.3, 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 5.5 Implement call initiation flow
+- [~] 5.5 Implement call initiation flow
   - Implement `initiateCall(contactId)` async function
   - Generate unique call_id using UUID
   - Request microphone access
@@ -255,7 +255,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Navigate to ActiveCallPage
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.7_
 
-- [ ] 5.6 Implement incoming call acceptance flow
+- [~] 5.6 Implement incoming call acceptance flow
   - Implement `acceptCall()` async function
   - Request microphone access
   - Send call_accept message via signaling WebSocket
@@ -264,34 +264,34 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Wait for SDP offer from caller
   - _Requirements: 3.4, 4.1_
 
-- [ ] 5.7 Implement call rejection flow
+- [~] 5.7 Implement call rejection flow
   - Implement `rejectCall()` function
   - Send call_reject message via signaling WebSocket
   - Update callState to 'idle'
   - Close incoming call modal
   - _Requirements: 3.5, 3.6_
 
-- [ ] 5.8 Implement SDP offer/answer exchange
+- [~] 5.8 Implement SDP offer/answer exchange
   - Implement `handleSDPOffer(sdp)` async function: set remote description, create answer, set local description, send sdp_answer
   - Implement `handleSDPAnswer(sdp)` async function: set remote description
   - Implement `createOffer()` async function: create offer, set local description, send sdp_offer
   - Integrate with signaling message handlers
   - _Requirements: 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 5.9 Implement ICE candidate handling
+- [~] 5.9 Implement ICE candidate handling
   - Implement `handleICECandidate(candidate)` function
   - Add received ICE candidate to peer connection
   - Handle errors if peer connection not ready
   - _Requirements: 4.6, 4.7, 10.3, 10.4_
 
-- [ ] 5.10 Implement call controls (mute, unmute, end)
+- [~] 5.10 Implement call controls (mute, unmute, end)
   - Implement `toggleMute()` function to enable/disable local audio track
   - Update isMuted state
   - Implement `endCall()` function: send hangup message, close peer connection, stop streams, update callState to 'ended'
   - Implement call duration tracking with setInterval (start on 'connected', stop on 'ended')
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 5.11 Implement connection state monitoring and error handling
+- [~] 5.11 Implement connection state monitoring and error handling
   - Handle ICE connection state 'failed': display error, attempt reconnect
   - Handle ICE connection state 'disconnected': show warning, attempt reconnect
   - Handle ICE connection state 'closed': cleanup resources
@@ -303,7 +303,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 6. Frontend WebSocket Client Hook
 
-- [ ] 6.1 Create useWebSocket hook for signaling connection
+- [-] 6.1 Create useWebSocket hook for signaling connection
   - Implement useWebSocket(url, token) custom hook
   - Initialize WebSocket connection with token in query string
   - Track connection state: 'connecting' | 'connected' | 'disconnected'
@@ -315,7 +315,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return isConnected, connectionState, sendMessage, onMessage callback registration
   - _Requirements: 1.1, 1.5, 9.4_
 
-- [ ] 6.2 Integrate signaling WebSocket with useWebRTC
+- [~] 6.2 Integrate signaling WebSocket with useWebRTC
   - Connect to `/ws/signaling` endpoint in useWebRTC hook
   - Register message handler for signaling messages
   - Route messages by type: call_initiate, call_accept, call_reject, sdp_offer, sdp_answer, ice_candidate, hangup, error
@@ -323,7 +323,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Update call state based on signaling messages
   - _Requirements: 1.5, 2.5, 2.6, 3.1, 3.2, 3.4, 3.5, 6.5_
 
-- [ ] 6.3 Create separate useWebSocket instance for analysis
+- [~] 6.3 Create separate useWebSocket instance for analysis
   - Implement connection to `/ws/analysis` endpoint
   - Send audio_chunk messages with PCM data
   - Receive risk_update messages
@@ -334,7 +334,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 7. Frontend Audio Processing with AudioWorklet
 
-- [ ] 7.1 Create AudioWorklet processor script
+- [x] 7.1 Create AudioWorklet processor script
   - Create `public/audioProcessor.js` file
   - Extend AudioWorkletProcessor class
   - Initialize with bufferSize=4096, sampleRate=16000, vadThreshold=0.01
@@ -348,7 +348,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return true to keep processor alive
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
-- [ ] 7.2 Create useAudioProcessor hook
+- [x] 7.2 Create useAudioProcessor hook
   - Implement useAudioProcessor(remoteStream, callId) custom hook
   - Create AudioContext
   - Load AudioWorklet module from `/audioProcessor.js`
@@ -360,7 +360,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Implement cleanup: disconnect nodes, close AudioContext, terminate worklet
   - _Requirements: 11.1, 11.2, 11.5, 11.7_
 
-- [ ] 7.3 Integrate AudioWorklet with WebRTC hook
+- [x] 7.3 Integrate AudioWorklet with WebRTC hook
   - Update useWebRTC to initialize useAudioProcessor when remoteStream is received
   - Pass remoteStream and callId to useAudioProcessor
   - Ensure AudioWorklet terminates when call ends
@@ -371,7 +371,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 8. Frontend Risk Dashboard Component
 
-- [ ] 8.1 Create RiskDashboard component structure
+- [x] 8.1 Create RiskDashboard component structure
   - Create RiskDashboard.jsx component accepting props: callId, callerInfo, isAnalyzing
   - Set up state for risk data: riskLevel, riskScore, confidence, recommendation, indicators, riskHistory
   - Implement useEffect to subscribe to analysis WebSocket risk_update messages
@@ -379,26 +379,26 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Append to riskHistory for timeline tracking
   - _Requirements: 14.1, 14.2, 14.3, 15.5_
 
-- [ ] 8.2 Implement risk level indicator with color coding
+- [x] 8.2 Implement risk level indicator with color coding
   - Display large color-coded badge based on riskLevel
   - GREEN for LOW, YELLOW for MEDIUM, RED for HIGH
   - Add animated transitions between levels using CSS transitions
   - Display risk level text prominently
   - _Requirements: 14.1, 14.6_
 
-- [ ] 8.3 Implement risk score and confidence display
+- [x] 8.3 Implement risk score and confidence display
   - Display numeric risk score (0-100) with progress bar
   - Display model confidence percentage with progress bar
   - Update in real-time as new risk_update messages arrive
   - _Requirements: 14.3_
 
-- [ ] 8.4 Implement recommendation display
+- [x] 8.4 Implement recommendation display
   - Display context-aware recommendation text from risk_update
   - Style differently based on risk level (info, warning, alert)
   - Show icon appropriate to risk level (✅, ⚠️, 🚨)
   - _Requirements: 14.7_
 
-- [ ] 8.5 Implement optional indicators display
+- [x] 8.5 Implement optional indicators display
   - Check if acoustic_indicators present in risk_update
   - Display acoustic metrics if available (spectral_anomaly, harmonic_distortion)
   - Check if prosody_indicators present in risk_update
@@ -406,14 +406,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Handle missing indicators gracefully
   - _Requirements: 14.4, 14.5_
 
-- [ ] 8.6 Implement risk history timeline visualization
+- [x] 8.6 Implement risk history timeline visualization
   - Create visual chart showing risk level changes over call duration
   - Use simple line chart or sparkline showing risk_score over time
   - Display time axis (0s to current duration)
   - Update in real-time as new risk updates arrive
   - _Requirements: 14.8_
 
-- [ ] 8.7 Add privacy notice and caller info display
+- [x] 8.7 Add privacy notice and caller info display
   - Display caller name and avatar at top of dashboard
   - Display phone number if available
   - Add privacy notice: "🔒 Privacy: Audio not stored"
@@ -424,7 +424,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 9. Frontend UI Updates and Integration
 
-- [ ] 9.1 Create IncomingCallModal component
+- [~] 9.1 Create IncomingCallModal component
   - Create IncomingCallModal.jsx component accepting props: callerInfo, onAccept, onReject
   - Display caller name and avatar
   - Display caller phone number if available
@@ -435,14 +435,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Apply overlay styling to focus user attention
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 9.2 Update ActiveCallPage with risk dashboard integration
+- [x] 9.2 Update ActiveCallPage with risk dashboard integration
   - Update ActiveCallPage.jsx to include RiskDashboard component
   - Pass callId and callerInfo to RiskDashboard
   - Display call duration prominently
   - Show connection status (connecting, connected, reconnecting)
   - _Requirements: 14.1, 14.2, 6.6_
 
-- [ ] 9.3 Create CallControls component
+- [~] 9.3 Create CallControls component
   - Create CallControls.jsx component with mute and end call buttons
   - Implement mute button with toggle state (muted/unmuted icon)
   - Call toggleMute from useWebRTC on button click
@@ -451,21 +451,21 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Style with clear, accessible button design
   - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 9.4 Add call controls to ActiveCallPage
+- [~] 9.4 Add call controls to ActiveCallPage
   - Integrate CallControls component in ActiveCallPage
   - Position controls prominently (bottom of page)
   - Pass mute and endCall handlers from useWebRTC
   - Display current mute state
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 9.5 Update CallContext with WebRTC integration
+- [~] 9.5 Update CallContext with WebRTC integration
   - Update CallContext.jsx to provide WebRTC state globally
   - Wrap app with CallContext provider
   - Make useWebRTC accessible from any component
   - Handle incoming call state globally to show IncomingCallModal
   - _Requirements: 3.1, 3.2_
 
-- [ ] 9.6 Update Dashboard with online presence indicators
+- [~] 9.6 Update Dashboard with online presence indicators
   - Update Dashboard.jsx to display online/offline status for contacts
   - Add PresenceIndicator component (green dot for online, gray for offline)
   - Subscribe to user_presence WebSocket messages
@@ -473,14 +473,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Disable call button for offline contacts
   - _Requirements: 16.4, 16.5_
 
-- [ ] 9.7 Create PresenceIndicator component
+- [~] 9.7 Create PresenceIndicator component
   - Create PresenceIndicator.jsx component accepting isOnline prop
   - Display green indicator for online users
   - Display gray indicator for offline users
   - Add optional tooltip showing "Online" or "Offline"
   - _Requirements: 16.4_
 
-- [ ] 9.8 Update CallHistoryPage with risk analysis display
+- [~] 9.8 Update CallHistoryPage with risk analysis display
   - Update CallHistoryPage.jsx to display risk_level and risk_score
   - Add color-coded risk badge for each call history entry
   - Display call duration, caller/callee info
@@ -492,7 +492,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 10. Error Handling and Edge Cases
 
-- [ ] 10.1 Implement frontend error handling for microphone access
+- [~] 10.1 Implement frontend error handling for microphone access
   - Wrap getUserMedia calls in try-catch blocks
   - Display user-friendly error messages for NotAllowedError (permission denied)
   - Display error for NotFoundError (no microphone found)
@@ -500,21 +500,21 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Provide guidance on how to resolve each error
   - _Requirements: 9.1_
 
-- [ ] 10.2 Implement WebRTC connection failure handling
+- [~] 10.2 Implement WebRTC connection failure handling
   - Monitor ICE connection state for 'failed' status
   - Display error message to user
   - Implement automatic reconnection attempt (1 retry)
   - If reconnection fails, show permanent error and cleanup
   - _Requirements: 9.3_
 
-- [ ] 10.3 Implement WebSocket reconnection logic
+- [~] 10.3 Implement WebSocket reconnection logic
   - Use exponential backoff for reconnection (1s, 2s, 4s, 8s, 16s)
   - Maximum 5 reconnection attempts
   - Display connection status to user (reconnecting...)
   - If all attempts fail, show error and suggest manual refresh
   - _Requirements: 9.4_
 
-- [ ] 10.4 Implement backend error handling for AI model failures
+- [~] 10.4 Implement backend error handling for AI model failures
   - Wrap AI model API calls in try-except blocks
   - Handle httpx.TimeoutException: log error, return fallback prediction
   - Handle httpx.HTTPStatusError: log error, return fallback prediction
@@ -522,7 +522,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Frontend: display "Analysis temporarily unavailable" message
   - _Requirements: 12.7, 15.1_
 
-- [ ] 10.5 Implement call cleanup on unexpected disconnect
+- [~] 10.5 Implement call cleanup on unexpected disconnect
   - Backend: detect WebSocket disconnect in signaling endpoint
   - Cleanup all active call sessions for disconnected user
   - Notify other participants of disconnect
@@ -530,7 +530,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Clear audio buffers
   - _Requirements: 9.2_
 
-- [ ] 10.6 Add browser compatibility checks
+- [~] 10.6 Add browser compatibility checks
   - Check for navigator.mediaDevices support
   - Check for RTCPeerConnection support
   - Check for AudioWorklet support
@@ -570,7 +570,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 12. Integration Testing and End-to-End Validation
 
-- [ ] 12.1 Test WebSocket signaling flow
+- [~] 12.1 Test WebSocket signaling flow
   - Start backend server
   - Connect two frontend clients with different users
   - Verify both marked as online
@@ -579,7 +579,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Verify User B receives call notification
   - _Requirements: 1.2, 1.3, 2.4, 2.5, 3.1, 16.2, 16.3_
 
-- [ ] 12.2 Test WebRTC peer connection establishment
+- [~] 12.2 Test WebRTC peer connection establishment
   - User B accepts call
   - Verify SDP offer created and sent
   - Verify SDP answer received
@@ -588,14 +588,14 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Verify audio streams established
   - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 5.2, 5.3_
 
-- [ ] 12.3 Test audio processing pipeline
+- [~] 12.3 Test audio processing pipeline
   - Verify AudioWorklet loaded and initialized
   - Verify PCM chunks generated from remote stream
   - Verify audio chunks sent to analysis WebSocket
   - Verify backend receives audio chunks
   - _Requirements: 11.1, 11.2, 11.5_
 
-- [ ] 12.4 Test AI analysis integration (mock mode)
+- [~] 12.4 Test AI analysis integration (mock mode)
   - Configure backend to use MockAIModelClient
   - Verify audio chunks processed
   - Verify risk updates generated
@@ -603,21 +603,21 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Verify RiskDashboard displays risk level, score, recommendation
   - _Requirements: 15.1, 15.2, 15.4, 15.5, 14.1, 14.3, 14.7_
 
-- [ ] 12.5 Test call controls
+- [~] 12.5 Test call controls
   - Test mute functionality: verify audio track disabled/enabled
   - Test end call: verify hangup message sent, peer connection closed, streams stopped
   - Verify other participant receives hangup notification
   - Verify call_history record created with correct duration
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 8.1_
 
-- [ ] 12.6 Test error scenarios
+- [~] 12.6 Test error scenarios
   - Test call to offline user: verify error message shown
   - Test microphone permission denied: verify error message
   - Test WebSocket disconnect during call: verify cleanup and notification
   - Test call rejection: verify caller notified, call_history created
   - _Requirements: 2.6, 3.5, 3.6, 9.1, 9.2_
 
-- [ ] 12.7 Test call history retrieval
+- [~] 12.7 Test call history retrieval
   - Make multiple test calls
   - Navigate to CallHistoryPage
   - Verify calls displayed with caller/callee info, duration, risk level
@@ -628,7 +628,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 13. Checkpoint - Integration Validation
 
-- [ ] 13. Ensure all core features working end-to-end
+- [~] 13. Ensure all core features working end-to-end
   - Ensure all tests from task 12 pass successfully
   - Verify no console errors in browser or backend logs
   - Verify call state transitions work correctly
@@ -639,24 +639,24 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 14. Performance Optimization and Polish
 
-- [ ] 14.1 Optimize AudioWorklet performance
+- [~] 14.1 Optimize AudioWorklet performance
   - Profile AudioWorklet processing latency (target < 50ms per chunk)
   - Adjust buffer size if needed for performance
   - Verify no audio glitches or dropouts
   - _Requirements: 11.2_
 
-- [ ] 14.2 Optimize WebSocket message handling
+- [~] 14.2 Optimize WebSocket message handling
   - Implement message throttling if too frequent (e.g., max 2 risk updates per second)
   - Add message batching for ICE candidates if many generated
   - _Requirements: 15.7_
 
-- [ ] 14.3 Add loading states and transitions
+- [~] 14.3 Add loading states and transitions
   - Add loading spinner during call connection
   - Add smooth transitions for risk level changes
   - Add loading indicator during risk analysis
   - _Requirements: 7.2, 14.3_
 
-- [ ] 14.4 Improve error messages and user feedback
+- [~] 14.4 Improve error messages and user feedback
   - Review all error messages for clarity
   - Add specific troubleshooting steps where appropriate
   - Test all error paths and ensure good UX
@@ -666,20 +666,20 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 15. Documentation and Deployment Preparation
 
-- [ ] 15.1 Update API documentation
+- [~] 15.1 Update API documentation
   - Document WebSocket endpoints (/ws/signaling, /ws/analysis)
   - Document message formats for all WebSocket message types
   - Document call history API endpoint
   - Add examples for each endpoint
 
-- [ ] 15.2 Create deployment checklist
+- [~] 15.2 Create deployment checklist
   - Document production environment variables
   - Document CORS configuration for production domain
   - Document HTTPS/SSL requirements for WebRTC
   - Document optional TURN server setup for NAT traversal
   - List browser compatibility requirements
 
-- [ ] 15.3 Add user documentation
+- [~] 15.3 Add user documentation
   - Create guide for making calls
   - Create guide for interpreting risk indicators
   - Document troubleshooting steps for common issues
@@ -689,7 +689,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 
 ### 16. Final Checkpoint - Production Readiness
 
-- [ ] 16. Verify production readiness
+- [~] 16. Verify production readiness
   - Verify all environment variables documented
   - Verify no sensitive data (API keys) exposed to frontend
   - Verify raw audio never persisted (check code paths)

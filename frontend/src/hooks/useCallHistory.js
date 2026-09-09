@@ -14,8 +14,20 @@ export const useCallHistory = (limit = 50, offset = 0) => {
       setLoading(true);
       setError(null);
       const response = await callsAPI.getCallHistory(limit, offset);
-      setCalls(response.calls || []);
-      setTotal(response.total || 0);
+      
+      // FIXED: Handle both array and object responses
+      if (Array.isArray(response)) {
+        // Real API returns array directly
+        console.log('[Call History] Received array response:', response.length, 'calls');
+        console.log('[Call History] First call:', response[0]);
+        setCalls(response);
+        setTotal(response.length);
+      } else {
+        // Mock mode returns {calls: [...], total: ...}
+        console.log('[Call History] Received object response:', response);
+        setCalls(response.calls || []);
+        setTotal(response.total || 0);
+      }
     } catch (err) {
       setError(err.message || 'Failed to fetch call history');
       console.error('Error fetching call history:', err);

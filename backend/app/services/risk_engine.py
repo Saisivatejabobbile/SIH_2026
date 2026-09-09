@@ -5,7 +5,7 @@ Calculates risk scores from AI model predictions
 
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class RiskEngine:
                 'risk_score': round(risk_score, 2),
                 'risk_level': risk_level,
                 'recommendation': recommendation,
-                'timestamp': datetime.utcnow().isoformat() + 'Z'
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
             
             # Include optional indicators if present
@@ -113,7 +113,7 @@ class RiskEngine:
                 'risk_score': 0.0,
                 'risk_level': 'UNKNOWN',
                 'recommendation': 'Unable to analyze call at this time',
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'error': str(e)
             }
     

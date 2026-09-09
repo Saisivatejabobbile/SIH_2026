@@ -225,19 +225,58 @@ class SignalingWebSocket extends WebSocketManager {
 
 class AnalysisWebSocket extends WebSocketManager {
   constructor() {
-    super('/ws/analyze');
+    super('/ws/analysis');  
   }
 
   connectWithCallId(token, callId) {
-    this.endpoint = `/ws/analyze?token=${token}&call_id=${callId}`;
-    return this.connect(token);
-  }
+  // Build the full URL with both token and call_id
+  const url = `${WS_URL}/ws/analysis?token=${token}&call_id=${callId}`;
+
+  // Connect directly without using base connect()
+  return new Promise((resolve, reject) => {
+    try {
+      this.ws = new WebSocket(url);
+
+      this.ws.onopen = () => {
+        console.log(`Analysis WebSocket connected for call: ${callId}`);
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        this.notifyConnectionHandlers(true);
+        resolve();
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          this.handleMessage(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      this.ws.onerror = (error) => {
+        console.error('Analysis WebSocket error:', error);
+        this.notifyErrorHandlers(error);
+        reject(error);
+      };
+
+      this.ws.onclose = () => {
+        console.log('Analysis WebSocket closed');
+        this.isConnected = false;
+        this.notifyConnectionHandlers(false);
+      };
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 
   sendAudioChunk(callId, pcmData, sampleRate = 16000) {
     this.send({
       type: 'audio_chunk',
       call_id: callId,
-      pcm: Array.from(pcmData),
+      audio_data: Array.from(pcmData),
       sample_rate: sampleRate,
       channels: 1,
       format: 'int16',
