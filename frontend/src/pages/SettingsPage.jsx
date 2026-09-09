@@ -1,7 +1,8 @@
-import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import { ROUTES } from '../constants';
+import { settingsAPI, authAPI } from '../services/api';
 import { 
   UserIcon, 
   LockIcon, 
@@ -13,8 +14,28 @@ import {
   ChartIcon,
   HistoryIcon,
   InfoIcon,
-  SettingsIcon
+  SettingsIcon,
+  XIcon
 } from '../utils/icons';
+
+// Modal Component
+function Modal({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-dark-900 border border-dark-700 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-white">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <XIcon className="w-5 h-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // Setting Row Component with toggle or chevron
 function SettingRow({ icon: Icon, title, description, value, onChange, type = 'toggle', onClick }) {
@@ -96,36 +117,195 @@ function SectionHeader({ title }) {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Call Settings
-  const [allowIncomingCalls, setAllowIncomingCalls] = useState(true);
-  const [incomingCallNotifications, setIncomingCallNotifications] = useState(true);
-  const [callSpeakerDefault, setCallSpeakerDefault] = useState(true);
+  // Modal states
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // AI Voice Protection
-  const [realtimeDetection, setRealtimeDetection] = useState(true);
-  const [highRiskAlerts, setHighRiskAlerts] = useState(true);
-  const [showRiskScore, setShowRiskScore] = useState(true);
-  const [showRiskHistory, setShowRiskHistory] = useState(true);
+  // Profile form
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
 
-  // Privacy
-  const [saveCallHistory, setSaveCallHistory] = useState(true);
+  // Password form
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
-  // Notifications
-  const [securityAlerts, setSecurityAlerts] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(false);
+  // Settings states (stored in localStorage)
+  const [allowIncomingCalls, setAllowIncomingCalls] = useState(() => 
+    localStorage.getItem('allowIncomingCalls') !== 'false'
+  );
+  const [incomingCallNotifications, setIncomingCallNotifications] = useState(() => 
+    localStorage.getItem('incomingCallNotifications') !== 'false'
+  );
+  const [callSpeakerDefault, setCallSpeakerDefault] = useState(() => 
+    localStorage.getItem('callSpeakerDefault') === 'true'
+  );
+  const [realtimeDetection, setRealtimeDetection] = useState(() => 
+    localStorage.getItem('realtimeDetection') !== 'false'
+  );
+  const [highRiskAlerts, setHighRiskAlerts] = useState(() => 
+    localStorage.getItem('highRiskAlerts') !== 'false'
+  );
+  const [showRiskScore, setShowRiskScore] = useState(() => 
+    localStorage.getItem('showRiskScore') !== 'false'
+  );
+  const [showRiskHistory, setShowRiskHistory] = useState(() => 
+    localStorage.getItem('showRiskHistory') !== 'false'
+  );
+  const [saveCallHistory, setSaveCallHistory] = useState(() => 
+    localStorage.getItem('saveCallHistory') !== 'false'
+  );
+  const [securityAlerts, setSecurityAlerts] = useState(() => 
+    localStorage.getItem('securityAlerts') !== 'false'
+  );
+  const [emailNotifications, setEmailNotifications] = useState(() => 
+    localStorage.getItem('emailNotifications') === 'true'
+  );
+
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('allowIncomingCalls', allowIncomingCalls);
+  }, [allowIncomingCalls]);
+
+  useEffect(() => {
+    localStorage.setItem('incomingCallNotifications', incomingCallNotifications);
+  }, [incomingCallNotifications]);
+
+  useEffect(() => {
+    localStorage.setItem('callSpeakerDefault', callSpeakerDefault);
+  }, [callSpeakerDefault]);
+
+  useEffect(() => {
+    localStorage.setItem('realtimeDetection', realtimeDetection);
+  }, [realtimeDetection]);
+
+  useEffect(() => {
+    localStorage.setItem('highRiskAlerts', highRiskAlerts);
+  }, [highRiskAlerts]);
+
+  useEffect(() => {
+    localStorage.setItem('showRiskScore', showRiskScore);
+  }, [showRiskScore]);
+
+  useEffect(() => {
+    localStorage.setItem('showRiskHistory', showRiskHistory);
+  }, [showRiskHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('saveCallHistory', saveCallHistory);
+  }, [saveCallHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('securityAlerts', securityAlerts);
+  }, [securityAlerts]);
+
+  useEffect(() => {
+    localStorage.setItem('emailNotifications', emailNotifications);
+  }, [emailNotifications]);
+
+  // Load user data on mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const user = await authAPI.getCurrentUser();
+      setCurrentUser(user);
+      setFullName(user.full_name || '');
+      setPhone(user.phone || '');
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setProfileLoading(true);
+    setProfileError('');
+    setProfileSuccess('');
+
+    try {
+      const updated = await settingsAPI.updateProfile(fullName, phone);
+      setCurrentUser(updated);
+      setProfileSuccess('Profile updated successfully!');
+      setTimeout(() => {
+        setShowProfileModal(false);
+        setProfileSuccess('');
+      }, 1500);
+    } catch (error) {
+      setProfileError(error.message || 'Failed to update profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordError('New password must be different from current password');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      await settingsAPI.changePassword(currentPassword, newPassword);
+      setPasswordSuccess('Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess('');
+      }, 1500);
+    } catch (error) {
+      setPasswordError(error.message || 'Failed to change password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const handleProfileClick = () => {
-    // Navigate to profile edit or open modal
-    alert('Profile editing coming soon');
+    setShowProfileModal(true);
   };
 
   const handlePasswordClick = () => {
-    alert('Change password coming soon');
+    setShowPasswordModal(true);
   };
 
-  const handleMicPermission = () => {
-    alert('Microphone permissions managed by browser');
+  const handleMicPermission = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      alert('Microphone permission granted!');
+    } catch (error) {
+      alert('Microphone permissions are managed by your browser. Please check browser settings.');
+    }
   };
 
   const handleActiveSessions = () => {
@@ -134,6 +314,7 @@ export default function SettingsPage() {
 
   const handleLogoutAll = () => {
     if (confirm('Logout from all devices?')) {
+      // TODO: Implement logout from all devices
       alert('Logout functionality coming soon');
     }
   };
@@ -149,6 +330,16 @@ export default function SettingsPage() {
   const handleHelp = () => {
     alert('Help & support coming soon');
   };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-white">Loading settings...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -169,7 +360,7 @@ export default function SettingsPage() {
               <SettingRow
                 icon={UserIcon}
                 title="Profile Information"
-                description="Name, email"
+                description={currentUser?.email || 'Not available'}
                 type="link"
                 onClick={handleProfileClick}
               />
@@ -196,7 +387,22 @@ export default function SettingsPage() {
                 icon={BellIcon}
                 title="Incoming Call Notifications"
                 value={incomingCallNotifications}
-                onChange={setIncomingCallNotifications}
+                onChange={async (enabled) => {
+                  if (enabled && 'Notification' in window) {
+                    if (Notification.permission === 'default') {
+                      const permission = await Notification.requestPermission();
+                      if (permission === 'granted') {
+                        setIncomingCallNotifications(true);
+                      }
+                    } else if (Notification.permission === 'granted') {
+                      setIncomingCallNotifications(true);
+                    } else {
+                      alert('Please enable notifications in your browser settings');
+                    }
+                  } else {
+                    setIncomingCallNotifications(enabled);
+                  }
+                }}
               />
               <SettingRow
                 icon={PhoneIcon}
@@ -335,7 +541,135 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Profile Edit Modal */}
+        <Modal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          title="Edit Profile"
+        >
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                placeholder="Your full name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                placeholder="+1 234 567 8900"
+              />
+            </div>
+            {profileError && (
+              <div className="text-danger-light text-sm">{profileError}</div>
+            )}
+            {profileSuccess && (
+              <div className="text-success-light text-sm">{profileSuccess}</div>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                className="flex-1 px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={profileLoading}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {profileLoading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Change Password Modal */}
+        <Modal
+          isOpen={showPasswordModal}
+          onClose={() => setShowPasswordModal(false)}
+          title="Change Password"
+        >
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Current Password
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                placeholder="Enter current password"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                New Password
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                placeholder="Enter new password (min 8 characters)"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                placeholder="Confirm new password"
+                required
+              />
+            </div>
+            {passwordError && (
+              <div className="text-danger-light text-sm">{passwordError}</div>
+            )}
+            {passwordSuccess && (
+              <div className="text-success-light text-sm">{passwordSuccess}</div>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(false)}
+                className="flex-1 px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {passwordLoading ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </Layout>
   );
 }
+

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+﻿import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CALL_STATES } from '../constants';
 import { getWebRTCManager } from '../services/webrtc';
@@ -47,6 +47,20 @@ export function CallProvider({ children }) {
 
       // Listen for incoming calls
       signalingWS.on('incoming_call', (message) => {
+        // Check if notifications are enabled
+        const incomingCallNotifications = localStorage.getItem('incomingCallNotifications');
+        
+        if (incomingCallNotifications !== 'false') {
+          // Show browser notification if enabled
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Incoming Call', {
+              body: Call from ${message.caller_name},
+              icon: '/logo.svg',
+              tag: 'incoming-call'
+            });
+          }
+        }
+        
         receiveIncomingCall({
           id: message.from,
           full_name: message.caller_name,
@@ -381,3 +395,5 @@ export function CallProvider({ children }) {
     </CallContext.Provider>
   );
 }
+
+

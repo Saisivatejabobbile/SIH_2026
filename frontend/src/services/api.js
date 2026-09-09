@@ -1,4 +1,4 @@
-// API Service Layer for VoiceShield Backend Integration
+﻿// API Service Layer for VoiceShield Backend Integration
 // This service handles all HTTP requests to the backend
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -343,6 +343,49 @@ export const healthAPI = {
   },
 };
 
+
+// ============================================================================
+// SETTINGS API
+// ============================================================================
+
+export const settingsAPI = {
+  // Update profile
+  updateProfile: async (full_name, phone) => {
+    if (IS_MOCK_MODE) {
+      return {
+        id: 'mock-user-123',
+        email: 'user@example.com',
+        full_name,
+        phone,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    const body = {};
+    if (full_name) body.full_name = full_name;
+    if (phone) body.phone = phone;
+
+    return apiCall('/api/users/me', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  },
+
+  // Change password
+  changePassword: async (currentPassword, newPassword) => {
+    if (IS_MOCK_MODE) {
+      return { message: 'Password changed successfully' };
+    }
+
+    return apiCall('/api/users/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+  },
+};
 // ============================================================================
 // EXPORT ALL APIs
 // ============================================================================
@@ -353,4 +396,6 @@ export default {
   contacts: contactsAPI,
   calls: callsAPI,
   health: healthAPI,
+  settings: settingsAPI,
 };
+

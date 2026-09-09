@@ -13,7 +13,9 @@ from app.models.user import User
 from app.models.contact import Contact
 from app.schemas.user import UserResponse
 from app.schemas.contact import ContactCreate, ContactResponse
+from app.schemas.settings import PasswordChangeRequest, PasswordChangeResponse, UserSettingsUpdate
 from app.auth.dependencies import get_current_active_user
+from app.auth.security import get_password_hash, verify_password
 
 router = APIRouter()
 
@@ -179,6 +181,45 @@ async def get_user_by_id(
     return user
 
 
+
+
+@router.put("/me/password", response_model=PasswordChangeResponse)
+async def change_password(
+    password_data: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Change user password
+    
+    Requires current password for verification
+    """
+    # Verify current password
+    if not verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    
+    # Validate new password
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long"
+        )
+    
+    if password_data.current_password == password_data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password"
+        )
+    
+    # Update password
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return PasswordChangeResponse(message="Password changed successfully")
 @router.put("/me", response_model=UserResponse)
 async def update_profile(
     full_name: str = None,
@@ -223,3 +264,5 @@ async def update_online_status(
         "message": "Status updated",
         "is_online": is_online
     }
+
+
