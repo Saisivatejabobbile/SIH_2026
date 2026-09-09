@@ -465,7 +465,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Handle incoming call state globally to show IncomingCallModal
   - _Requirements: 3.1, 3.2_
 
-- [~] 9.6 Update Dashboard with online presence indicators
+- [x] 9.6 Update Dashboard with online presence indicators
   - Update Dashboard.jsx to display online/offline status for contacts
   - Add PresenceIndicator component (green dot for online, gray for offline)
   - Subscribe to user_presence WebSocket messages
@@ -473,7 +473,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Disable call button for offline contacts
   - _Requirements: 16.4, 16.5_
 
-- [~] 9.7 Create PresenceIndicator component
+- [x] 9.7 Create PresenceIndicator component
   - Create PresenceIndicator.jsx component accepting isOnline prop
   - Display green indicator for online users
   - Display gray indicator for offline users
@@ -738,4 +738,5 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
 - **Production Readiness**: Task 15 ensures proper documentation and deployment preparation before going live.
 
 This implementation plan provides a complete roadmap from database schema to production deployment, with clear dependencies and validation points throughout the process.
+
 

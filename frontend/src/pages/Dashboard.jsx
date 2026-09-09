@@ -1,19 +1,26 @@
 import { useAuth } from '../context/AuthContext';
 import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall.jsx';
 import { useCall } from '../context/CallContext';
+import { useSignalingWebSocket } from '../context/WebSocketContext';
 import IncomingCallModal from '../components/IncomingCallModal';
 import Layout from '../components/layout/Layout';
 import StatsCard from '../components/dashboard/StatsCard';
 import SecurityStatusCard from '../components/dashboard/SecurityStatusCard';
+import PresenceIndicator from '../components/common/PresenceIndicator';
 import { IS_MOCK_MODE } from '../constants';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants';
 import { PhoneIcon, UsersIcon, ChartIcon, LockIcon, MaskIcon, ShieldIcon } from '../utils/icons';
+import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { receiveIncomingCall } = useCall();
   const navigate = useNavigate();
+  const signalingWS = useSignalingWebSocket();
+  
+  // Track online users
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
   
   // WebRTC Integration with SimplePeer
   const {
@@ -29,13 +36,48 @@ export default function Dashboard() {
     formatDuration,
   } = useSharedSimplePeerCall();
   
+  // Subscribe to presence updates
+  useEffect(() => {
+    if (!signalingWS?.isConnected) return;
+    
+    const handlePresence = (data) => {
+      console.log('Presence update:', data);
+      const userId = data.user_id;
+      const status = data.status;
+      
+      setOnlineUsers(prev => {
+        const updated = new Set(prev);
+        if (status === 'online') {
+          updated.add(userId);
+        } else {
+          updated.delete(userId);
+        }
+        return updated;
+      });
+    };
+    
+    // Subscribe to presence messages
+    if (signalingWS?.subscribe) {
+      signalingWS.subscribe('user_presence', handlePresence);
+    }
+    
+    return () => {
+      if (signalingWS?.unsubscribe) {
+        signalingWS.unsubscribe('user_presence', handlePresence);
+      }
+    };
+  }, [signalingWS?.isConnected]);
+  
   // Get first name from full name
   const firstName = user?.full_name?.split(' ')[0] || 'User';
+  
+  // Mock contact - User ID 2 is Raya
+  const isRayaOnline = onlineUsers.has(2);
   
   // Mock stats data
   const stats = {
     activeCalls: 12,
-    contactsOnline: 5,
+    contactsOnline: onlineUsers.size,
     threatsBlocked: 0,
   };
 
@@ -69,9 +111,9 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className={`p-4 rounded-lg border ${isConnected ? 'bg-success-dark/20 border-success-light/30' : 'bg-warning-dark/20 border-warning-light/30'}`}>
+        <div className={p-4 rounded-lg border ` + (isConnected ? 'bg-success-dark/20 border-success-light/30' : 'bg-warning-dark/20 border-warning-light/30')}>
             <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-success-light' : 'bg-warning-light'}`}></div>
+              <div className={w-3 h-3 rounded-full ` + (isConnected ? 'bg-success-light' : 'bg-warning-light')}></div>
               <p className={isConnected ? 'text-success-light' : 'text-warning-light'}>
                 {isConnected ? 'WebRTC Connected - Ready for calls' : 'Connecting...'}
               </p>
@@ -141,16 +183,25 @@ export default function Dashboard() {
             <div className="space-y-3">
               <button 
                 onClick={() => initiateCall(2, 'Raya')}
-                disabled={!isConnected || callState !== 'idle'}
+                disabled={!isConnected || !isRayaOnline || callState !== 'idle'}
                 className="w-full p-4 bg-primary-600 hover:bg-primary-700 disabled:bg-dark-700 disabled:cursor-not-allowed rounded-lg text-left transition-colors group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center group-hover:bg-white/20 transition-colors">
                     <PhoneIcon className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <p className="text-white font-medium">Call Raya (WebRTC)</p>
-                    <p className="text-gray-300 text-sm">{isConnected ? 'Click to call' : 'Connecting...'}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium">Call Raya (WebRTC)</p>
+                      <PresenceIndicator isOnline={isRayaOnline} size="sm" />
+                    </div>
+                    <p className="text-gray-300 text-sm">
+                      {!isConnected 
+                        ? 'Connecting...' 
+                        : !isRayaOnline 
+                        ? 'Offline - Cannot call' 
+                        : 'Click to call'}
+                    </p>
                   </div>
                 </div>
               </button>
@@ -210,7 +261,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1">
               <p className="text-white font-medium">Privacy Protected</p>
-              <p className="text-gray-400 text-sm">Raw Audio Retention: OFF • All processing is transient</p>
+              <p className="text-gray-400 text-sm">Raw Audio Retention: OFF ? All processing is transient</p>
             </div>
             <div className="px-3 py-1 bg-success-dark/20 rounded-full flex items-center gap-1">
               <div className="w-2 h-2 bg-success-light rounded-full"></div>
