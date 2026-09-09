@@ -125,7 +125,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Add simulated network delay (0.5s) using asyncio.sleep
   - _Requirements: 15.1, 15.2_
 
-- [-] 3.3 Implement Risk Engine for score calculation
+- [x] 3.3 Implement Risk Engine for score calculation
   - Create RiskEngine class with configurable thresholds (default: LOW < 30, HIGH >= 70)
   - Implement `calculate_risk(model_prediction: dict)` method
   - Extract synthetic_probability and model_confidence from prediction
@@ -135,7 +135,7 @@ This implementation plan breaks down the WebRTC Voice Calling feature into discr
   - Return dict with synthetic_confidence, model_confidence, risk_score, risk_level, recommendation, indicators, timestamp
   - _Requirements: 15.2, 15.3, 15.4_
 
-- [-] 3.4 Implement AudioBuffer for transient audio storage
+- [x] 3.4 Implement AudioBuffer for transient audio storage
   - Create AudioBuffer class with bounded deque (max_samples based on duration)
   - Implement `append(pcm_chunk: List[int])` method using ring buffer
   - Implement `get_window(duration_seconds: float)` method to extract recent samples
