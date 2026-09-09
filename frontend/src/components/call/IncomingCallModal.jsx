@@ -9,98 +9,91 @@ export default function IncomingCallModal({
   onReject,
   isOpen 
 }) {
-  const audioRef = useRef(null);
-  const [audioReady, setAudioReady] = useState(false);
+  const oscillatorRef = useRef(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
-  // Initialize audio on first user interaction (when component mounts)
+  // Play ringing sound effect and cleanup on unmount
   useEffect(() => {
-    // Create a simple beep sound using data URL
-    const audioElement = new Audio();
-    audioElement.loop = true;
-    audioElement.volume = 0.3;
-    
-    // Create a simple ringtone using Web Audio API and convert to blob
-    const createRingtone = async () => {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const sampleRate = audioContext.sampleRate;
-      const duration = 2; // 2 seconds
-      const numSamples = sampleRate * duration;
-      const buffer = audioContext.createBuffer(1, numSamples, sampleRate);
-      const data = buffer.getChannelData(0);
-      
-      // Generate ring pattern: 0.5s on, 0.5s off, 0.5s on, 0.5s off
-      for (let i = 0; i < numSamples; i++) {
-        const time = i / sampleRate;
-        const segment = Math.floor(time / 0.5) % 4;
-        
-        if (segment === 0 || segment === 2) {
-          // Ring tone (480Hz and 620Hz mixed)
-          data[i] = 0.3 * (Math.sin(2 * Math.PI * 480 * time) + Math.sin(2 * Math.PI * 620 * time));
-        } else {
-          // Silence
-          data[i] = 0;
-        }
-      }
-      
-      // Convert buffer to WAV blob
-      const wav = audioBufferToWav(buffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      audioElement.src = url;
-      setAudioReady(true);
-    };
-    
-    createRingtone().catch(console.error);
-    audioRef.current = audioElement;
-    
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
-      }
-    };
-  }, []);
-
-  // Play/stop ringtone based on modal state
-  useEffect(() => {
-    if (isOpen && caller && audioReady && audioRef.current) {
+    if (isOpen && caller) {
       console.log('?? Incoming call from:', caller?.full_name);
-      console.log('?? Playing ringtone...');
       
-      // Play audio (with promise handling for autoplay policy)
-      audioRef.current.play()
-        .then(() => {
-          console.log('? Ringtone playing successfully');
-        })
-        .catch((error) => {
-          console.warn('?? Autoplay blocked by browser:', error);
-          console.log('?? Tip: Click anywhere on the page to enable audio');
-        });
-    } else if (!isOpen && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      // Try to play ringtone
+      playRingtone();
+      
+      // Cleanup function
+      return () => {
+        stopRingtone();
+      };
+    }
+  }, [isOpen, caller]);
+
+  const playRingtone = async () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Check if context is suspended
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Configure ringtone
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 480;
+      gainNode.gain.value = 0.5; // 50% volume
+      
+      // Start oscillator
+      oscillator.start();
+      
+      // Alternating pattern
+      const interval = setInterval(() => {
+        oscillator.frequency.value = oscillator.frequency.value === 480 ? 620 : 480;
+      }, 500);
+      
+      oscillatorRef.current = { audioContext, oscillator, gainNode, interval };
+      
+      console.log('? Ringtone playing');
+      setAudioBlocked(false);
+    } catch (error) {
+      console.warn('?? Ringtone blocked:', error.message);
+      setAudioBlocked(true);
+    }
+  };
+
+  const stopRingtone = () => {
+    if (oscillatorRef.current) {
+      const { audioContext, oscillator, interval } = oscillatorRef.current;
+      clearInterval(interval);
+      try {
+        oscillator.stop();
+        audioContext.close();
+      } catch (e) {
+        // Already stopped
+      }
+      oscillatorRef.current = null;
       console.log('?? Ringtone stopped');
     }
-  }, [isOpen, caller, audioReady]);
+  };
 
-  // Helper function to stop ringtone before calling callbacks
   const handleAccept = () => {
-    console.log('? Call accepted - stopping ringtone');
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    stopRingtone();
     onAccept();
   };
 
   const handleReject = () => {
-    console.log('? Call rejected - stopping ringtone');
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    stopRingtone();
     onReject();
+  };
+
+  // Enable audio manually (for browsers that block autoplay)
+  const enableAudio = () => {
+    stopRingtone();
+    playRingtone();
   };
 
   if (!isOpen || !caller) return null;
@@ -111,7 +104,7 @@ export default function IncomingCallModal({
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
       
       {/* Modal Content */}
-      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 animate-bounce-slow">
+      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4">
         {/* Caller Avatar */}
         <div className="flex flex-col items-center">
           <Avatar 
@@ -135,16 +128,31 @@ export default function IncomingCallModal({
           )}
           
           {/* Call Status */}
-          <div className="flex items-center gap-2 mb-8">
+          <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 bg-primary-600 rounded-full animate-pulse" />
             <p className="text-primary-400 text-sm font-medium">
               Incoming audio call...
             </p>
           </div>
+          
+          {/* Audio Blocked Warning */}
+          {audioBlocked && (
+            <div className="mb-4 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-yellow-400 text-xs">
+                ?? Ringtone blocked by browser.{' '}
+                <button 
+                  onClick={enableAudio}
+                  className="underline hover:text-yellow-300"
+                >
+                  Click to enable
+                </button>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 mt-4">
           <Button
             variant="danger"
             size="lg"
@@ -176,60 +184,4 @@ export default function IncomingCallModal({
       </div>
     </div>
   );
-}
-
-// Helper function to convert AudioBuffer to WAV
-function audioBufferToWav(buffer) {
-  const length = buffer.length * buffer.numberOfChannels * 2 + 44;
-  const arrayBuffer = new ArrayBuffer(length);
-  const view = new DataView(arrayBuffer);
-  const channels = [];
-  let offset = 0;
-  let pos = 0;
-
-  // Write WAV header
-  const setUint16 = (data) => {
-    view.setUint16(pos, data, true);
-    pos += 2;
-  };
-  const setUint32 = (data) => {
-    view.setUint32(pos, data, true);
-    pos += 4;
-  };
-
-  // "RIFF" chunk descriptor
-  setUint32(0x46464952); // "RIFF"
-  setUint32(length - 8); // file length - 8
-  setUint32(0x45564157); // "WAVE"
-
-  // "fmt " sub-chunk
-  setUint32(0x20746d66); // "fmt "
-  setUint32(16); // size of fmt chunk
-  setUint16(1); // audio format (1 = PCM)
-  setUint16(buffer.numberOfChannels);
-  setUint32(buffer.sampleRate);
-  setUint32(buffer.sampleRate * 2 * buffer.numberOfChannels); // byte rate
-  setUint16(buffer.numberOfChannels * 2); // block align
-  setUint16(16); // bits per sample
-
-  // "data" sub-chunk
-  setUint32(0x61746164); // "data"
-  setUint32(length - pos - 4); // chunk length
-
-  // Write interleaved data
-  for (let i = 0; i < buffer.numberOfChannels; i++) {
-    channels.push(buffer.getChannelData(i));
-  }
-
-  while (pos < length) {
-    for (let i = 0; i < buffer.numberOfChannels; i++) {
-      let sample = Math.max(-1, Math.min(1, channels[i][offset]));
-      sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-      view.setInt16(pos, sample, true);
-      pos += 2;
-    }
-    offset++;
-  }
-
-  return arrayBuffer;
 }
