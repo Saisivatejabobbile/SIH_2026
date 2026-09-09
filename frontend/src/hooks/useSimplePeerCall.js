@@ -316,24 +316,9 @@ export function useSimplePeerCall() {
     console.log('[Call Debug] calleeIdRef:', calleeIdRef.current);
     console.log('[Call Debug] callDuration:', callDuration);
     
-    // Save call history if call was connected
-    if (callState === 'connected' && callStartTimeRef.current && currentCallIdRef.current && calleeIdRef.current) {
-      console.log('[Call History] Attempting to save call history...');
-      try {
-        const endTime = new Date();
-        await callsAPI.saveCallHistory({
-          call_id: currentCallIdRef.current,
-          callee_id: calleeIdRef.current,
-          started_at: callStartTimeRef.current.toISOString(),
-          ended_at: endTime.toISOString(),
-          duration_seconds: callDuration,
-          call_status: 'completed'
-        });
-        console.log('[Call History] Call history saved');
-      } catch (error) {
-        console.error('[Call History] Failed to save call history:', error);
-      }
-    }
+    // NOTE: Call history is now automatically saved by backend on hangup (Task 4.2)
+    // No need to manually save from frontend
+    // Backend _handle_hangup_routing() saves call history with risk scores
     
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
